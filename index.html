@@ -1,0 +1,1689 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111318">
+<meta name="description" content="Mi Kakeibo: control de gastos con el método japonés, 100 % sin internet y sin anuncios.">
+<title>Mi Kakeibo</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+:root{--bg:#f3f4f7;--card:#fff;--card2:#f7f8fa;--tx:#1b1d24;--mut:#6b7080;--line:#e3e5eb;--acc:#2a9a6c;--accT:#fff;--acc2:#e3f4ec;--bad:#d94b4b;--warn:#d99023;--ok:#2a9a6c;--r:18px;--sh:0 1px 3px rgba(0,0,0,.06)}
+[data-theme=dark]{--bg:#111318;--card:#1b1e26;--card2:#22262f;--tx:#eceef3;--mut:#9aa0ae;--line:#2c303b;--acc:#46c08d;--accT:#0d1a14;--acc2:#1b3128;--bad:#ff6b6b;--warn:#f2b04f;--ok:#46c08d;--sh:none}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding-bottom:calc(90px + env(safe-area-inset-bottom));overscroll-behavior-y:contain}
+button,input,select,textarea{font:inherit;color:inherit}
+h2{font-size:1.3rem;margin:0}h3{font-size:1.05rem;margin:0 0 8px}
+p{margin:6px 0}
+.wrap{max-width:560px;margin:0 auto;padding:0 14px}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(12px + env(safe-area-inset-top)) 14px 8px;display:flex;align-items:center;gap:10px;max-width:560px;margin:0 auto}
+.top h1{font-size:1.2rem;margin:0;flex:1}
+.ib{background:var(--card);border:1px solid var(--line);border-radius:12px;width:40px;height:40px;display:grid;place-items:center;font-size:1.1rem;cursor:pointer}
+.mnav{display:flex;align-items:center;justify-content:space-between;margin:4px 0 12px}
+.mnav b{text-transform:capitalize;font-size:1.05rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:var(--sh)}
+.card.hi{border-color:var(--acc);background:var(--acc2)}
+.card.warn{border-color:var(--warn)}
+.mut{color:var(--mut)}.sm{font-size:.85rem}.xs{font-size:.75rem}
+.big{font-size:2.1rem;font-weight:800;letter-spacing:-.5px;margin:2px 0 8px}
+.neg{color:var(--bad)}.pos{color:var(--ok)}
+.bar{height:10px;background:var(--card2);border-radius:99px;overflow:hidden;margin:6px 0}
+.bar i{display:block;height:100%;border-radius:99px;transition:width .4s}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.kpis div{background:var(--card2);border-radius:12px;padding:8px}
+.kpis span{display:block;font-size:.72rem;color:var(--mut)}.kpis b{font-size:.84rem;white-space:nowrap;letter-spacing:-.2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.between{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.btn{background:var(--acc);color:var(--accT);border:0;border-radius:12px;padding:11px 16px;font-weight:700;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--acc);border:1.5px solid var(--acc)}
+.btn.bad{background:var(--bad);color:#fff}
+.btn.full{width:100%}
+.btn.sm{padding:7px 12px;font-size:.85rem;border-radius:10px}
+.link{background:none;border:0;color:var(--acc);font-weight:700;cursor:pointer;padding:4px 0}
+.cat{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.cat:last-child{border-bottom:0}
+.dot{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:1.15rem;flex:none}
+.grow{flex:1;min-width:0}
+.ell{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tx{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.tx:last-child{border-bottom:0}
+.amt{font-weight:700;white-space:nowrap}
+.day{display:flex;justify-content:space-between;font-size:.8rem;color:var(--mut);margin:14px 4px 4px;text-transform:capitalize}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips.scroll{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.chip{border:1.5px solid var(--line);background:var(--card);border-radius:99px;padding:7px 12px;font-size:.88rem;cursor:pointer;white-space:nowrap}
+.chip.on{border-color:var(--acc);background:var(--acc2);color:var(--tx);font-weight:700}
+.chip:has(input:checked){border-color:var(--acc);background:var(--acc2)}
+.chip .x{margin-left:6px;opacity:.6}
+input.f,select.f,textarea.f{width:100%;background:var(--card2);border:1.5px solid var(--line);border-radius:12px;padding:11px 12px;outline:none}
+input.f:focus,select.f:focus,textarea.f:focus{border-color:var(--acc)}
+textarea.f{min-height:80px;resize:vertical}
+label.l{display:block;font-size:.8rem;color:var(--mut);margin:12px 0 5px;font-weight:600}
+.money{font-size:2rem;font-weight:800;text-align:center;letter-spacing:-.5px}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--card2);border-radius:12px;padding:4px;gap:4px}
+.seg button{border:0;background:none;border-radius:9px;padding:9px;font-weight:700;cursor:pointer;color:var(--mut)}
+.seg button.on{background:var(--card);color:var(--tx);box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.cats4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.cats4 button{border:1.5px solid var(--line);background:var(--card);border-radius:14px;padding:9px 2px;cursor:pointer;font-size:.72rem;line-height:1.15}
+.cats4 button span{display:block;font-size:1.4rem;margin-bottom:3px}
+.cats4 button.on{border-width:2px}
+nav.bot{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(5,1fr);align-items:end}
+nav.bot button{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:.7rem;color:var(--mut);padding:4px 0;cursor:pointer}
+nav.bot button i{font-style:normal;font-size:1.3rem}
+nav.bot button.on{color:var(--acc);font-weight:700}
+nav.bot .fab{width:58px;height:58px;border-radius:20px;background:var(--acc);color:var(--accT);font-size:2rem;margin:-26px auto 0;display:grid;place-items:center;box-shadow:0 6px 16px rgba(0,0,0,.25);border:0;cursor:pointer}
+#modal .bg{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:20;display:flex;align-items:flex-end;justify-content:center;animation:fd .15s}
+#modal .sheet{background:var(--card);width:100%;max-width:560px;max-height:92vh;overflow:auto;border-radius:22px 22px 0 0;padding:14px 16px calc(18px + env(safe-area-inset-bottom));animation:up .2s}
+#modal .grab{width:40px;height:5px;background:var(--line);border-radius:9px;margin:0 auto 10px}
+@keyframes up{from{transform:translateY(40px);opacity:.5}}@keyframes fd{from{opacity:0}}
+#toast{position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:.9rem;z-index:40;opacity:0;pointer-events:none;transition:opacity .25s;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
+.donutw{position:relative;width:170px;height:170px;margin:0 auto}
+.donutw .c{position:absolute;inset:0;display:grid;place-items:center;text-align:center}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:12px;font-size:.85rem}
+.legend span{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.menu button{display:flex;align-items:center;gap:12px;width:100%;background:none;border:0;border-bottom:1px solid var(--line);padding:13px 2px;text-align:left;cursor:pointer}
+.menu button:last-child{border-bottom:0}
+.menu button i{font-style:normal;font-size:1.3rem;width:30px;text-align:center}
+.menu button .grow b{display:block}
+.pill{display:inline-block;font-size:.7rem;padding:2px 8px;border-radius:99px;background:var(--card2);color:var(--mut);font-weight:700}
+.pill.ok{background:var(--acc2);color:var(--acc)}.pill.warn{color:var(--warn)}
+.empty{text-align:center;color:var(--mut);padding:24px 8px}
+.empty i{font-style:normal;font-size:2.4rem;display:block;margin-bottom:6px}
+table.t{width:100%;border-collapse:collapse;font-size:.85rem}
+table.t th,table.t td{padding:8px 4px;border-bottom:1px solid var(--line);text-align:right}
+table.t th:first-child,table.t td:first-child{text-align:left}
+table.t th{color:var(--mut);font-weight:600;font-size:.75rem}
+.lock{position:fixed;inset:0;background:var(--bg);z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+.pins{display:flex;gap:14px}.pins b{width:16px;height:16px;border-radius:50%;border:2px solid var(--mut)}.pins b.on{background:var(--acc);border-color:var(--acc)}
+.pad{display:grid;grid-template-columns:repeat(3,72px);gap:12px}
+.pad button{height:72px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:1.5rem;cursor:pointer}
+.shake{animation:sh .35s}@keyframes sh{25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.li{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
+.li:last-child{border-bottom:0}
+.del{background:none;border:0;color:var(--mut);font-size:1.1rem;cursor:pointer;padding:4px 6px}
+.check{width:26px;height:26px;border-radius:8px;border:2px solid var(--line);background:none;cursor:pointer;display:grid;place-items:center;font-size:.85rem;flex:none}
+.check.on{background:var(--acc);border-color:var(--acc);color:var(--accT)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.goal .bar{height:12px}
+svg text{fill:var(--mut);font-size:9px}
+.q{font-weight:700;margin-top:14px}
+.cards{display:flex;gap:10px;overflow-x:auto;padding:2px 14px 10px;margin:0 -14px;scrollbar-width:none}
+.cards::-webkit-scrollbar{display:none}
+.acard{flex:none;width:205px;height:122px;border-radius:18px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);overflow:hidden}
+.acard.big{width:100%;height:150px;margin-bottom:12px}
+.acard.add{background:var(--card);border:2px dashed var(--line);color:var(--mut);align-items:center;justify-content:center;box-shadow:none;width:100px}
+.cbal{font-size:1.3rem;font-weight:800;letter-spacing:-.3px}.acard.big .cbal{font-size:1.7rem}
+.banks{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.bank{border:1.5px solid var(--line);background:var(--card);border-radius:12px;padding:9px 7px;font-size:.74rem;cursor:pointer;display:flex;align-items:center;gap:6px;text-align:left;line-height:1.15}
+.bank i{width:14px;height:14px;border-radius:50%;flex:none}
+.bank.on{border-color:var(--acc);background:var(--acc2);font-weight:700}
+.bdot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.cats3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cats3 button{border:1.5px solid var(--line);background:var(--card);border-radius:14px;padding:8px 2px;cursor:pointer;font-size:.74rem;line-height:1.15}
+.cats3 button span{display:block;font-size:1.3rem;margin-bottom:2px}
+.seg3{grid-template-columns:1fr 1fr 1fr}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal"></div>
+<div id="toast"></div>
+<input type="file" id="fileIn" accept="application/json,.json" hidden>
+<script src="config.js"></script>
+<script>
+'use strict';
+/* =========================================================
+   Mi Kakeibo · versión 1
+   Todo se guarda solo en este dispositivo (localStorage).
+   ========================================================= */
+const KEY = 'mikakeibo.v1';
+const APP_VERSION = '4.0.0';
+const TOUR=[
+  {e:'👋',t:'Bienvenido a Mi Kakeibo',p:'Es el método japonés para controlar la plata: anotar cada gasto, darte cuenta en qué se va y decidir mejor. Sin anuncios y funciona sin internet.'},
+  {e:'🗓️',t:'1. Planea el mes',p:'Al empezar cada mes escribe lo que te entra, tus gastos fijos (arriendo, servicios…) y cuánto quieres ahorrar. Lo que sobra es lo que puedes gastar.'},
+  {e:'➕',t:'2. Anota cada gasto',p:'Toca el botón verde <b>+</b>, escribe el monto y elige uno de los 4 pilares: 🏠 Supervivencia, 🎉 Ocio, 📚 Cultura o ⚡ Extras. Marca si lo necesitabas, lo querías o fue un impulso.'},
+  {e:'💳',t:'3. Tus cuentas y tarjetas',p:'Agrega Nequi, tu banco, tu tarjeta de crédito y el efectivo. Al anotar un gasto eliges con qué pagaste y el saldo se descuenta solo. Pasar plata entre cuentas no cuenta como gasto.'},
+  {e:'😌',t:'4. Mira cuánto puedes gastar hoy',p:'En Inicio verás <b>"Hoy puedes gastar"</b> y si vas bien con el ritmo del mes. Al final del mes, haz la reflexión con las 4 preguntas.'},
+  {e:'☁️',t:'5. Respaldo y espacio compartido',p:'En <b>Más › Ajustes</b> conecta tu Google Drive para no perder nada. En <b>Más › Espacios compartidos</b> pueden crear "Casa" para la plata que manejan en pareja.'}
+];
+const CATS = [
+  {id:'sup', name:'Supervivencia', emoji:'🏠', color:'#2fa874', desc:'Lo necesario: mercado, transporte, servicios, salud'},
+  {id:'oci', name:'Ocio y vicios', emoji:'🎉', color:'#ef8d3c', desc:'Salidas, comida fuera, juegos, antojos'},
+  {id:'cul', name:'Cultura', emoji:'📚', color:'#4a8fe0', desc:'Cursos, libros, cine, música, apps'},
+  {id:'ext', name:'Extras', emoji:'⚡', color:'#a06be6', desc:'Imprevistos, regalos, reparaciones, ropa'}
+];
+const DEFAULT_SUBS = {
+  sup:['Mercado','Transporte','Servicios','Salud','Arriendo','Aseo','Celular/Internet'],
+  oci:['Comida fuera','Salidas','Juegos','Antojos','Suscripciones'],
+  cul:['Cursos','Libros','Cine','Música','Software'],
+  ext:['Imprevistos','Regalos','Reparaciones','Ropa','Otros']
+};
+const MOODS = [
+  {id:'nec', name:'Lo necesitaba', emoji:'✅'},
+  {id:'que', name:'Lo quería', emoji:'🙂'},
+  {id:'imp', name:'Fue impulso', emoji:'⚡'}
+];
+const MONTHS = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const WDAYS = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const GOAL_EMOJIS = ['🎯','💻','🏍️','✈️','🏠','🎓','🛡️','🎮','📱','🎁'];
+
+/* ---------- utilidades ---------- */
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,'0');
+const dstr = d => d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const todayStr = () => dstr(new Date());
+const ymOf = ds => ds.slice(0,7);
+const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const sum = (arr, k='amount') => arr.reduce((a,x)=>a+(Number(x[k])||0),0);
+const fmt = n => (n<0?'-':'')+'$\u00a0'+Math.round(Math.abs(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+const fmtIn = n => n ? Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.') : '';
+const parseAmt = v => Number(String(v||'').replace(/\D/g,''))||0;
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ymParts = ym => ym.split('-').map(Number);
+const daysIn = ym => { const [y,m]=ymParts(ym); return new Date(y,m,0).getDate(); };
+const monthName = ym => { const [y,m]=ymParts(ym); return MONTHS[m-1]+' '+y; };
+const monthShort = ym => { const [y,m]=ymParts(ym); return MONTHS[m-1].slice(0,3); };
+const addMonth = (ym,k) => { let [y,m]=ymParts(ym); m+=k; while(m>12){m-=12;y++} while(m<1){m+=12;y--} return y+'-'+pad(m); };
+const parseD = ds => { const [y,m,d]=ds.split('-').map(Number); return new Date(y,m-1,d); };
+const daysBetween = (a,b) => Math.round((parseD(b)-parseD(a))/86400000);
+const catById = id => CATS.find(c=>c.id===id) || CATS[3];
+const moodById = id => MOODS.find(m=>m.id===id);
+const pctColor = p => p>=100?'var(--bad)':p>=85?'var(--warn)':'var(--acc)';
+function dayLabel(ds){
+  const t=todayStr(), diff=daysBetween(ds,t);
+  if(diff===0) return 'Hoy';
+  if(diff===1) return 'Ayer';
+  const d=parseD(ds); return WDAYS[d.getDay()]+' '+d.getDate()+' de '+MONTHS[d.getMonth()];
+}
+function hash(s){ // candado básico (no es cifrado)
+  let h=2166136261; s='mk#'+s;
+  for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,16777619); }
+  return (h>>>0).toString(36);
+}
+
+/* ---------- estado ---------- */
+function defState(){
+  return {v:1, created:todayStr(),
+    settings:{theme:'auto', pin:null, wishDays:30, autoDrive:true, subs:JSON.parse(JSON.stringify(DEFAULT_SUBS)), lastBackup:null},
+    months:{}, tx:[], goals:[], wishes:[], accounts:[], del:{}};
+}
+function migrate(s){
+  const d=defState();
+  s.settings=Object.assign(d.settings, s.settings||{});
+  s.settings.subs=s.settings.subs||{};
+  for(const c of CATS) if(!Array.isArray(s.settings.subs[c.id])) s.settings.subs[c.id]=[...DEFAULT_SUBS[c.id]];
+  s.months=s.months||{}; s.tx=Array.isArray(s.tx)?s.tx:[]; s.goals=s.goals||[]; s.wishes=s.wishes||[]; s.del=(s.del&&typeof s.del==='object')?s.del:{}; s.accounts=Array.isArray(s.accounts)?s.accounts:[];
+  s.v=1; return s;
+}
+function load(){
+  try{ const r=localStorage.getItem(KEY); if(r) return migrate(JSON.parse(r)); }catch(e){ console.error(e); }
+  return defState();
+}
+let S = load();
+/* Cada registro lleva "u" (momento del último cambio) y los borrados quedan anotados en S.del.
+   Así se pueden mezclar los datos de varios dispositivos sin perder nada. */
+function recordsOf(s){
+  const r=[];
+  s.tx.forEach(o=>r.push(['t:'+o.id,o])); s.goals.forEach(o=>r.push(['g:'+o.id,o])); s.wishes.forEach(o=>r.push(['w:'+o.id,o])); s.accounts.forEach(o=>r.push(['a:'+o.id,o]));
+  for(const k in s.months) r.push(['m:'+k,s.months[k]]);
+  r.push(['s:',s.settings]); return r;
+}
+const NOSIG={u:1,pin:1,lastBackup:1};
+const sig = o => JSON.stringify(o,(k,v)=>NOSIG[k]?undefined:v);
+function buildMap(s){ const m=new Map(); for(const [k,o] of recordsOf(s)) m.set(k,sig(o)); return m; }
+let prevMap = buildMap(S);
+function stamp(){
+  const now=Date.now(), cur=new Map(); let changed=false;
+  for(const [k,o] of recordsOf(S)){ const j=sig(o); cur.set(k,j); if(prevMap.get(k)!==j){ o.u=now; delete S.del[k]; changed=true; } }
+  for(const k of prevMap.keys()) if(!cur.has(k)){ S.del[k]=now; changed=true; }
+  prevMap=cur; return changed;
+}
+function persist(){
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); }
+  catch(e){ toast('⚠️ No se pudo guardar: '+e.message); }
+}
+function save(){ const ch=stamp(); persist(); if(ch && typeof Sync!=='undefined') Sync.changed(); }
+function M(ym){
+  if(!S.months[ym]) S.months[ym]={income:[], fixed:[], saving:0, budgets:{sup:0,oci:0,cul:0,ext:0}, refl:{a:'',b:'',c:'',d:''}, setup:false, closed:false};
+  const m=S.months[ym]; m.budgets=m.budgets||{sup:0,oci:0,cul:0,ext:0}; m.refl=m.refl||{a:'',b:'',c:'',d:''};
+  return m;
+}
+function stats(ym){
+  const m=M(ym);
+  const tx=S.tx.filter(t=>t.date.startsWith(ym));
+  const gastos=tx.filter(isOut), extraIn=tx.filter(t=>t.type==='in');
+  const ingFix=sum(m.income), ingExtra=sum(extraIn), ing=ingFix+ingExtra;
+  const fijos=sum(m.fixed), ahorro=Number(m.saving)||0;
+  const disp=ing-fijos-ahorro, gastado=sum(gastos);
+  const byCat={}; CATS.forEach(c=>byCat[c.id]=0);
+  gastos.forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+t.amount);
+  const byMood={nec:0,que:0,imp:0}; gastos.forEach(t=>{ if(t.mood) byMood[t.mood]+=t.amount; });
+  return {m,tx,gastos,ing,ingFix,ingExtra,fijos,ahorro,disp,gastado,restante:disp-gastado,byCat,byMood,ahorroReal:ing-fijos-gastado};
+}
+
+/* =========================================================
+   CUENTAS Y TARJETAS
+   Saldo de débito/billetera/efectivo = saldo inicial + entradas − salidas.
+   Deuda de crédito = deuda inicial + compras − pagos.
+   Mover plata entre cuentas o pagar la tarjeta NO es un gasto.
+   ========================================================= */
+const BANKS = [
+  {id:'bancolombia', n:'Bancolombia', c:'#F2C200', t:'#1b1d24'},
+  {id:'davivienda', n:'Davivienda', c:'#D9231D'},
+  {id:'nequi', n:'Nequi', c:'#C5007A'},
+  {id:'daviplata', n:'DaviPlata', c:'#E3342F'},
+  {id:'bbva', n:'BBVA', c:'#004481'},
+  {id:'bogota', n:'Banco de Bogotá', c:'#123E7C'},
+  {id:'nu', n:'Nu', c:'#820AD1'},
+  {id:'lulo', n:'Lulo Bank', c:'#C8F03C', t:'#1b1d24'},
+  {id:'cajasocial', n:'Caja Social', c:'#1C5DAB'},
+  {id:'colpatria', n:'Scotiabank Colpatria', c:'#D81E05'},
+  {id:'popular', n:'Banco Popular', c:'#00843D'},
+  {id:'avvillas', n:'AV Villas', c:'#0B4EA2'},
+  {id:'occidente', n:'Banco de Occidente', c:'#003B7A'},
+  {id:'falabella', n:'Banco Falabella', c:'#2E9B47'},
+  {id:'itau', n:'Itaú', c:'#EC7000'},
+  {id:'rappipay', n:'RappiPay', c:'#FF5A36'},
+  {id:'movii', n:'MOVii', c:'#5A2D82'},
+  {id:'agrario', n:'Banco Agrario', c:'#1E7B34'},
+  {id:'efectivo', n:'Efectivo', c:'#2a9a6c'},
+  {id:'otro', n:'Otro', c:'#5b6475'}
+];
+const ATYPES = {deb:{n:'Débito / ahorros', s:'Débito', e:'💳'}, cre:{n:'Crédito', s:'Crédito', e:'💳'}, bil:{n:'Billetera digital', s:'Billetera', e:'📱'}, efe:{n:'Efectivo', s:'Efectivo', e:'💵'}};
+const bankBy = id => BANKS.find(b=>b.id===id) || BANKS[BANKS.length-1];
+const isOut = t => !t.type || t.type==='out';
+const accById = id => id ? S.accounts.find(a=>a.id===id) : null;
+const activeAccs = () => S.accounts.filter(a=>!a.archived);
+const accLabel = a => a ? a.name+(a.last4?' ••'+a.last4:'') : '';
+function accFlow(id){
+  let v=0;
+  for(const t of S.tx){
+    if(t.acc===id){ if(t.type==='in'||t.type==='rin') v+=t.amount; else v-=t.amount; }
+    if(t.type==='tr' && t.to===id) v+=t.amount;
+  }
+  return v;
+}
+function accBal(a){ const f=accFlow(a.id); return a.type==='cre' ? (a.start||0)-f : (a.start||0)+f; }
+function startFor(type,id,shown){ const f=accFlow(id); return type==='cre' ? shown+f : shown-f; }
+function accTotals(){ let tengo=0, debo=0; for(const a of activeAccs()){ const b=accBal(a); if(a.type==='cre') debo+=Math.max(0,b); else tengo+=b; } return {tengo,debo}; }
+function shade(hex,p){ const n=parseInt(hex.slice(1),16), f=v=>Math.max(0,Math.min(255,Math.round(v+p/100*255))); return '#'+((1<<24)+(f(n>>16)<<16)+(f((n>>8)&255)<<8)+f(n&255)).toString(16).slice(1); }
+function lastAcc(){ let id=''; try{ id=localStorage.getItem('mikakeibo.lastAcc')||''; }catch(e){} const a=accById(id); return a&&!a.archived ? id : ''; }
+function cardHtml(a,big){
+  const b=bankBy(a.bank), bal=accBal(a), fg=b.t||'#fff';
+  const body = a.type==='cre'
+    ? `<div><div class="xs" style="opacity:.8">Debes</div><div class="cbal">${fmt(bal)}</div>${a.limit?`<div class="xs" style="opacity:.85">Disponible ${fmt(a.limit-bal)}</div>`:''}</div>`
+    : `<div><div class="xs" style="opacity:.8">Saldo</div><div class="cbal">${fmt(bal)}</div></div>`;
+  return `<div class="acard ${big?'big':''}" style="background:linear-gradient(135deg,${b.c},${shade(b.c,-22)});color:${fg}" data-a="openAcc" data-id="${a.id}">
+    <div class="between"><b class="sm ell">${esc(a.name)}</b><span class="xs" style="opacity:.85">${ATYPES[a.type].e} ${ATYPES[a.type].s}</span></div>
+    ${body}<div class="xs" style="opacity:.8;letter-spacing:2px">${a.last4?'•••• '+esc(a.last4):'&nbsp;'}</div></div>`;
+}
+function accSection(){
+  const L=activeAccs();
+  if(!L.length) return `<div class="card"><div class="between"><div><b>💳 ¿Dónde tienes tu plata?</b><div class="xs mut">Agrega tus cuentas, tarjetas y efectivo para saber cuánto tienes en cada una.</div></div><button class="btn sm" data-a="newAcc">Agregar</button></div></div>`;
+  const t=accTotals();
+  return `<div class="between" style="margin:4px 4px 8px"><h3 style="margin:0">Mis cuentas</h3><button class="link sm" data-a="go" data-t="cuentas">Ver todas</button></div>
+    <div class="cards">${L.map(a=>cardHtml(a)).join('')}<div class="acard add" data-a="newAcc"><span style="font-size:1.6rem">+</span><span class="sm">Agregar</span></div></div>
+    <div class="sm" style="margin:0 4px 14px">Tienes <b>${fmt(t.tengo)}</b>${t.debo?` · Debes en tarjetas <b class="neg">${fmt(t.debo)}</b>`:''}</div>`;
+}
+function creditAlerts(){
+  const d=new Date().getDate(), dim=daysIn(ymOf(todayStr()));
+  return activeAccs().filter(a=>a.type==='cre' && a.payDay && accBal(a)>0).map(a=>{ let left=a.payDay-d; if(left<0) left+=dim; return {a,left}; }).filter(x=>x.left<=5)
+    .map(({a,left})=>`<div class="card warn"><div class="between"><div><b>💳 Paga tu ${esc(a.name)}</b><div class="xs mut">Debes ${fmt(accBal(a))} · ${left===0?'el pago vence hoy':'el pago vence en '+left+' día'+(left>1?'s':'')}</div></div><button class="btn sm" data-a="payCard" data-id="${a.id}">Registrar pago</button></div></div>`).join('');
+}
+function vCuentas(){
+  const L=activeAccs(), t=accTotals();
+  let h=`<div class="card"><div class="grid2"><div><div class="xs mut">Tienes</div><b style="font-size:1.3rem">${fmt(t.tengo)}</b></div><div><div class="xs mut">Debes en tarjetas</div><b style="font-size:1.3rem" class="${t.debo?'neg':''}">${fmt(t.debo)}</b></div></div>
+    <div class="xs mut" style="margin-top:8px">Lo tuyo de verdad (lo que tienes menos lo que debes): <b>${fmt(t.tengo-t.debo)}</b></div></div>`;
+  if(!L.length) h+=`<div class="card empty"><i>💳</i>Agrega tu primera cuenta: Nequi, Bancolombia, tu tarjeta de crédito, el efectivo…</div>`;
+  h+=L.map(a=>cardHtml(a,true)).join('');
+  h+=`<button class="btn full" data-a="newAcc" style="margin:4px 0 10px">+ Agregar cuenta o tarjeta</button>`;
+  if(L.length>1) h+=`<button class="btn full ghost" data-a="move" style="margin-bottom:12px">↔️ Mover plata entre cuentas</button>`;
+  h+=`<p class="xs mut" style="text-align:center;margin-bottom:14px">🔒 Aquí nunca se pone el número completo de la tarjeta ni el código de seguridad. Con los últimos 4 dígitos basta.</p>`;
+  return h;
+}
+function vCuenta(){
+  const a=accById(ui.accId); if(!a) return vCuentas();
+  const bal=accBal(a), list=S.tx.filter(t=>t.acc===a.id||t.to===a.id).sort(sortTx).slice(0,80);
+  let h=cardHtml(a,true);
+  if(a.type==='cre'){
+    const p=a.limit?Math.min(100,bal/a.limit*100):0;
+    h+=`<div class="card"><div class="between sm"><span>Cupo usado</span><b>${a.limit?Math.round(p)+'% de '+fmt(a.limit):'Sin cupo registrado'}</b></div>${a.limit?`<div class="bar"><i style="width:${Math.max(0,p)}%;background:${pctColor(p)}"></i></div>`:''}
+      <div class="xs mut">${[a.cutDay?'Corte el día '+a.cutDay:'', a.payDay?'Pago hasta el día '+a.payDay:''].filter(Boolean).join(' · ')||'Agrega el día de corte y de pago en Editar'}</div>
+      <p class="xs mut">Las compras con esta tarjeta cuentan como gasto el día que las haces. Cuando la pagas, es un movimiento entre cuentas: no se cuenta dos veces.</p></div>`;
+  }
+  h+=`<div class="grid2" style="margin-bottom:12px">${a.type==='cre'?`<button class="btn" data-a="payCard" data-id="${a.id}">Pagar tarjeta</button>`:`<button class="btn" data-a="move" data-from="${a.id}">Mover plata</button>`}<button class="btn ghost" data-a="adjAcc" data-id="${a.id}">${a.type==='cre'?'Corregir deuda':'Corregir saldo'}</button></div>`;
+  h+=`<div class="card"><h3>Movimientos</h3>${list.length?list.map(txRow).join(''):'<div class="empty"><i>🫙</i>Aún no hay movimientos con esta cuenta.</div>'}</div>`;
+  h+=`<div class="row" style="justify-content:center;margin-bottom:14px"><button class="btn sm ghost" data-a="editAcc" data-id="${a.id}">Editar</button><button class="btn sm ghost" data-a="delAcc" data-id="${a.id}" style="color:var(--bad);border-color:var(--bad)">Eliminar</button></div>`;
+  return h;
+}
+const autoName = f => f.type==='cre' ? bankBy(f.bank).n+' Crédito' : bankBy(f.bank).n;
+function openAccForm(a){
+  ui.aform = a ? Object.assign(JSON.parse(JSON.stringify(a)),{show:accBal(a)}) : {id:null,bank:'',type:'deb',name:'',last4:'',show:0,limit:0,cutDay:'',payDay:''};
+  openModal('acc');
+}
+function mAcc(){
+  const f=ui.aform;
+  let h=`<div class="between" style="margin-bottom:8px"><h2>${f.id?'Editar cuenta':'Nueva cuenta o tarjeta'}</h2><button class="ib" data-a="closeModal">✕</button></div>
+    <label class="l">1. ¿De qué banco o billetera es?</label><div class="banks">${BANKS.map(x=>`<button class="bank ${f.bank===x.id?'on':''}" data-a="aBank" data-v="${x.id}"><i style="background:${x.c}"></i>${x.n}</button>`).join('')}</div>`;
+  if(!f.bank) return h;
+  if(f.bank!=='efectivo') h+=`<label class="l">2. ¿Qué tipo es?</label><div class="chips">${['deb','cre','bil'].map(k=>`<button class="chip ${f.type===k?'on':''}" data-a="aType" data-v="${k}">${ATYPES[k].e} ${ATYPES[k].n}</button>`).join('')}</div>`;
+  h+=`<label class="l">Nombre para reconocerla</label><input class="f" id="aName" value="${esc(f.name)}" placeholder="${esc(autoName(f))}" maxlength="30">`;
+  if(f.type!=='efe') h+=`<label class="l">Últimos 4 dígitos <span class="mut">(opcional)</span></label><input class="f" id="aLast4" inputmode="numeric" maxlength="4" value="${esc(f.last4)}" placeholder="Ej: 4821">`;
+  if(f.type==='cre') h+=`<label class="l">Cupo total de la tarjeta</label><input class="f" id="aLimit" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.limit)}">
+    <label class="l">¿Cuánto debes hoy en esta tarjeta?</label><input class="f money" id="aShow" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.show)}">
+    <div class="grid2"><div><label class="l">Día de corte</label><input class="f" id="aCut" type="number" min="1" max="31" inputmode="numeric" value="${f.cutDay||''}"></div><div><label class="l">Día límite de pago</label><input class="f" id="aPay" type="number" min="1" max="31" inputmode="numeric" value="${f.payDay||''}"></div></div>`;
+  else h+=`<label class="l">¿Cuánto tienes hoy ahí?</label><input class="f money" id="aShow" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.show)}">`;
+  h+=`<p class="xs mut" style="margin-top:10px">🔒 Nunca escribas aquí el número completo ni el código de seguridad de la tarjeta.</p>
+    <button class="btn full" data-a="saveAcc" style="margin-top:6px">${f.id?'Guardar cambios':'Agregar'}</button>`;
+  return h;
+}
+function readAcc(){
+  const f=ui.aform; if(!f) return; const g=id=>document.getElementById(id);
+  if(g('aName')) f.name=g('aName').value;
+  if(g('aLast4')) f.last4=g('aLast4').value.replace(/\D/g,'').slice(0,4);
+  if(g('aShow')) f.show=parseAmt(g('aShow').value);
+  if(g('aLimit')) f.limit=parseAmt(g('aLimit').value);
+  if(g('aCut')) f.cutDay=Math.min(31,parseInt(g('aCut').value)||0)||'';
+  if(g('aPay')) f.payDay=Math.min(31,parseInt(g('aPay').value)||0)||'';
+}
+function setFixedPaid(f,on,ym){
+  if(!on){ f.paid=false; S.tx=S.tx.filter(t=>!(t.type==='fix'&&t.fixedId===f.id)); save(); render(); return; }
+  const finish=acc=>{
+    f.paid=true;
+    if(acc) S.tx.push({id:uid(), type:'fix', amount:f.amount, acc, note:f.name, fixedId:f.id, date: ym===ymOf(todayStr())?todayStr():ym+'-'+pad(Math.min(f.day||1,daysIn(ym))), ts:Date.now()});
+    save(); render(); toast('✅ '+f.name+' pagado');
+  };
+  const accs=activeAccs(); if(!accs.length) return finish(null);
+  ask({title:'¿Con qué pagaste '+f.name+'?', text:'Se descuenta del saldo de esa cuenta. No cuenta como gasto extra porque ya estaba en tu plan.', select:[...accs.map(a=>({v:a.id,l:accLabel(a)})),{v:'',l:'No descontar de ninguna cuenta'}], ok:'Listo'},
+    ()=>{ const v=$('#pSel').value; closeModal(); finish(v||null); });
+}
+function setIncReceived(i,on,ym){
+  if(!on){ i.got=false; S.tx=S.tx.filter(t=>!(t.type==='rin'&&t.incId===i.id)); save(); render(); return; }
+  const finish=acc=>{
+    i.got=true;
+    if(acc) S.tx.push({id:uid(), type:'rin', amount:i.amount, acc, note:i.name, incId:i.id, date: ym===ymOf(todayStr())?todayStr():ym+'-01', ts:Date.now()});
+    save(); render(); toast('💰 '+i.name+' recibido');
+  };
+  const accs=activeAccs().filter(a=>a.type!=='cre'); if(!accs.length) return finish(null);
+  ask({title:'¿A dónde te llegó '+i.name+'?', text:'Se suma al saldo de esa cuenta. Ya estaba en tu plan, así que no cambia el presupuesto.', select:[...accs.map(a=>({v:a.id,l:accLabel(a)})),{v:'',l:'No sumar a ninguna cuenta'}], ok:'Listo'},
+    ()=>{ const v=$('#pSel').value; closeModal(); finish(v||null); });
+}
+
+/* =========================================================
+   ESPACIOS COMPARTIDOS (ej: "Casa")
+   - Es un archivo en el Drive de quien lo crea, compartido con la pareja.
+   - Cada uno lo tiene también en su celular: funciona sin internet y se mezcla al sincronizar.
+   - Fondo = aportes − gastos pagados con el fondo − devoluciones.
+   - "Lo pagué de mi bolsillo" = la casa le debe esa plata a esa persona.
+   ========================================================= */
+const SPACES_KEY='mikakeibo.spaces';
+const SP_CATS=[
+  {id:'mer',n:'Mercado',e:'🛒',c:'#2fa874'}, {id:'ser',n:'Servicios',e:'💡',c:'#e9a23b'}, {id:'arr',n:'Arriendo',e:'🏠',c:'#4a8fe0'},
+  {id:'ase',n:'Aseo',e:'🧽',c:'#3bb7c4'}, {id:'rep',n:'Arreglos',e:'🔧',c:'#8a7f72'}, {id:'hog',n:'Hogar y muebles',e:'🛋️',c:'#a06be6'},
+  {id:'mas',n:'Mascotas',e:'🐾',c:'#d9774b'}, {id:'sal',n:'Planes juntos',e:'🍿',c:'#e0577d'}, {id:'otr',n:'Otros',e:'📦',c:'#6b7080'}
+];
+const SP_EMOJIS=['🏠','💑','🛒','✈️','🐾','🎉','👨‍👩‍👧','💰'];
+const spCat=id=>SP_CATS.find(c=>c.id===id)||SP_CATS[SP_CATS.length-1];
+function spMigrate(d){
+  d=d&&typeof d==='object'?d:{};
+  d.meta=d.meta||{name:'Casa',emoji:'🏠'}; d.meta.members=Array.isArray(d.meta.members)?d.meta.members:[]; d.meta.split=d.meta.split||{};
+  d.items=Array.isArray(d.items)?d.items:[]; d.del=d.del||{}; return d;
+}
+function spRecs(d){ const r=d.items.map(o=>['i:'+o.id,o]); r.push(['meta',d.meta]); return r; }
+function spMap(d){ const m=new Map(); for(const [k,o] of spRecs(d)) m.set(k,sig(o)); return m; }
+function spMerge(L,R){
+  L=spMigrate(L); R=spMigrate(R);
+  const del=Object.assign({},R.del); for(const k in L.del) del[k]=Math.max(del[k]||0,L.del[k]);
+  const pick=(a,b)=>!a?b:!b?a:((b.u||0)>(a.u||0)?b:a);
+  const m=new Map(); L.items.forEach(o=>m.set(o.id,o)); R.items.forEach(o=>m.set(o.id,pick(m.get(o.id),o)));
+  const items=[...m.values()].filter(o=>!(del['i:'+o.id]>=(o.u||0)));
+  const meta=JSON.parse(JSON.stringify(pick(L.meta,R.meta)));
+  const mem=new Map();
+  [...L.meta.members,...R.meta.members].forEach(x=>{ if(!x||!x.email) return; const p=mem.get(x.email)||{}; mem.set(x.email,Object.assign({},p,x,{name:x.name||p.name||''})); });
+  meta.members=[...mem.values()];
+  meta.u=Math.max(L.meta.u||0,R.meta.u||0);
+  return spMigrate(JSON.parse(JSON.stringify({meta,items,del})));
+}
+const Spaces={
+  _l:null, cache:{},
+  list(){ if(!this._l){ try{ this._l=JSON.parse(localStorage.getItem(SPACES_KEY))||[]; }catch(e){ this._l=[]; } } return this._l; },
+  saveList(){ try{ localStorage.setItem(SPACES_KEY,JSON.stringify(this._l)); }catch(e){} },
+  get(id){ return this.list().find(s=>s.id===id); },
+  data(id){
+    if(!this.cache[id]){ let d=null; try{ d=JSON.parse(localStorage.getItem('mikakeibo.sp.'+id)); }catch(e){} d=spMigrate(d); this.cache[id]={d,prev:spMap(d)}; }
+    return this.cache[id].d;
+  },
+  setData(id,d){ d=spMigrate(d); this.cache[id]={d,prev:spMap(d)}; this.persist(id); const s=this.get(id); if(s){ s.name=d.meta.name; s.emoji=d.meta.emoji; this.saveList(); } },
+  persist(id){ try{ localStorage.setItem('mikakeibo.sp.'+id,JSON.stringify(this.cache[id].d)); }catch(e){ toast('⚠️ No se pudo guardar'); } },
+  save(id){
+    const c=this.cache[id]; if(!c) return; const now=Date.now(), cur=spMap(c.d); let ch=false;
+    for(const [k,o] of spRecs(c.d)) if(c.prev.get(k)!==cur.get(k)){ o.u=now; delete c.d.del[k]; ch=true; }
+    for(const k of c.prev.keys()) if(!cur.has(k)){ c.d.del[k]=now; ch=true; }
+    c.prev=spMap(c.d); this.persist(id);
+    const s=this.get(id); if(s){ s.name=c.d.meta.name; s.emoji=c.d.meta.emoji; if(ch) s.dirty=true; this.saveList(); }
+    if(ch) Sync.changed();
+  },
+  add(entry,d){ this.list().push(entry); this.saveList(); this.setData(entry.id,d); },
+  remove(id){ this._l=this.list().filter(s=>s.id!==id); this.saveList(); try{ localStorage.removeItem('mikakeibo.sp.'+id); }catch(e){} delete this.cache[id]; if(ui.space===id) ui.space=null; }
+};
+const myEmail=()=>Sync.st.email||'';
+function spMembers(d){
+  const L=d.meta.members.slice(); const me=myEmail();
+  if(me && !L.some(m=>m.email===me)) L.unshift({email:me,name:S.settings.myName||''});
+  return L;
+}
+function spName(d,email){ if(email===myEmail()) return 'Tú'; const m=d.meta.members.find(x=>x.email===email); return m&&m.name?m.name:(email||'?').split('@')[0]; }
+function spStats(d,ym){
+  const it=d.items, ap=it.filter(x=>x.kind==='ap'), g=it.filter(x=>x.kind==='g'), re=it.filter(x=>x.kind==='re');
+  const fondo=sum(ap)-sum(g.filter(x=>x.paidBy==='fund'))-sum(re);
+  const mem=spMembers(d), totAp=sum(ap);
+  const pctOf=e=>{ const v=Number(d.meta.split[e]); return isFinite(v)&&v>0?v:100/Math.max(1,mem.length); };
+  const byMember=mem.map(m=>({...m, aporte:sum(ap.filter(x=>x.who===m.email)), meta:pctOf(m.email), debe:sum(g.filter(x=>x.paidBy===m.email))-sum(re.filter(x=>x.to===m.email))}));
+  const mg=g.filter(x=>x.date.startsWith(ym)), byCat={}; mg.forEach(x=>byCat[x.cat]=(byCat[x.cat]||0)+x.amount);
+  const apMes=sum(ap.filter(x=>x.date.startsWith(ym)));
+  return {fondo,byMember,totAp,gastoMes:sum(mg),apMes,byCat,mItems:it.filter(x=>x.date.startsWith(ym))};
+}
+function spaceSwitch(){
+  const L=Spaces.list(); if(!L.length) return '';
+  return `<div class="chips scroll" style="margin-bottom:10px"><button class="chip ${!ui.space?'on':''}" data-a="space" data-id="">👤 Personal</button>${L.map(s=>`<button class="chip ${ui.space===s.id?'on':''}" data-a="space" data-id="${esc(s.id)}">${esc(s.emoji||'🏠')} ${esc(s.name)}</button>`).join('')}</div>`;
+}
+function spRow(x,d){
+  if(x.kind==='ap') return `<div class="tx" data-a="spEdit" data-id="${x.id}"><div class="dot" style="background:var(--acc2)">💰</div><div class="grow"><b class="sm">${x.who===myEmail()?'Tu aporte':'Aporte de '+esc(spName(d,x.who))}</b><div class="xs mut ell">${esc(x.note||'Al fondo común')}</div></div><span class="amt pos">+${fmt(x.amount)}</span></div>`;
+  if(x.kind==='re') return `<div class="tx" data-a="spEdit" data-id="${x.id}"><div class="dot" style="background:var(--card2)">↩️</div><div class="grow"><b class="sm">${x.to===myEmail()?'Te devolvieron':'Devolución a '+esc(spName(d,x.to))}</b><div class="xs mut">Salió del fondo</div></div><span class="amt">-${fmt(x.amount)}</span></div>`;
+  const c=spCat(x.cat);
+  return `<div class="tx" data-a="spEdit" data-id="${x.id}"><div class="dot" style="background:${c.c}22">${c.e}</div><div class="grow"><b class="sm ell">${esc(x.note||c.n)}</b>
+    <div class="xs mut ell">${c.n} · ${x.paidBy==='fund'?'del fondo':x.paidBy===myEmail()?'lo pagaste tú':'lo pagó '+esc(spName(d,x.paidBy))}${x.by&&x.by!==myEmail()?' · anotó '+esc(spName(d,x.by)):''}</div></div><span class="amt">-${fmt(x.amount)}</span></div>`;
+}
+function vSpace(){
+  const sp=Spaces.get(ui.space); if(!sp){ ui.space=null; return vInicio(); }
+  const d=Spaces.data(sp.id), st=spStats(d,ui.month), mname=MONTHS[ymParts(ui.month)[1]-1];
+  let h='';
+  if(!Sync.on()) h+=`<div class="card warn"><b>☁️ Drive desconectado</b><p class="sm">Lo que anotes se guarda en tu celular, pero tu pareja no lo verá hasta que conectes Drive.</p><button class="btn sm" data-a="go" data-t="ajustes">Conectar</button></div>`;
+  if(sp.err) h+=`<div class="card warn"><b>⚠️ No se pudo sincronizar</b><p class="sm">${esc(sp.err)}</p></div>`;
+  h+=`<div class="card"><div class="between"><span class="mut sm">${esc(sp.emoji)} En el fondo de ${esc(d.meta.name)}</span><button class="link sm" data-a="go" data-t="spajustes">⚙️ Ajustes</button></div>
+    <div class="big ${st.fondo<0?'neg':''}">${fmt(st.fondo)}</div>
+    <div class="kpis" style="grid-template-columns:1fr 1fr"><div><span>Aportado en ${mname}</span><b>${fmt(st.apMes)}</b></div><div><span>Gastado en ${mname}</span><b>${fmt(st.gastoMes)}</b></div></div>
+    <div class="grid2" style="margin-top:12px"><button class="btn" data-a="spAdd" data-k="g">− Anotar gasto</button><button class="btn ghost" data-a="spAdd" data-k="ap">+ Anotar aporte</button></div>
+    <div class="xs mut" style="margin-top:8px">${sp.lastSync?'☁️ Sincronizado '+ago(sp.lastSync):'☁️ Aún sin sincronizar'}${sp.dirty?' · ⏳ cambios por subir':''}</div></div>`;
+  if(st.fondo<0) h+=`<div class="card warn"><b>El fondo está en rojo</b><p class="sm">Se ha gastado ${fmt(-st.fondo)} más de lo que se ha aportado. Toca anotar un aporte.</p></div>`;
+  // aportes
+  h+=`<div class="card"><h3>¿Cuánto ha puesto cada uno?</h3>`;
+  st.byMember.forEach(m=>{
+    const p=st.totAp?m.aporte/st.totAp*100:0, ideal=st.totAp*m.meta/100, falta=ideal-m.aporte;
+    h+=`<div style="margin:10px 0"><div class="between sm"><b>${esc(spName(d,m.email))}</b><span>${fmt(m.aporte)} <span class="mut xs">${Math.round(p)}% · meta ${Math.round(m.meta)}%</span></span></div>
+      <div class="bar" style="height:8px"><i style="width:${p}%;background:var(--acc)"></i></div>
+      ${st.totAp&&falta>500?`<div class="xs" style="color:var(--warn)">${m.email===myEmail()?'Te faltan':'Le faltan'} ${fmt(falta)} para ir parejo</div>`:''}</div>`;
+  });
+  h+=`</div>`;
+  // deudas
+  const owed=st.byMember.filter(m=>m.debe>0);
+  if(owed.length) h+=`<div class="card"><h3>La casa le debe a…</h3><p class="xs mut">Gastos de la casa que alguien pagó de su bolsillo.</p>${owed.map(m=>`<div class="li"><div class="grow"><b class="sm">${esc(spName(d,m.email))}</b><div class="xs mut">${fmt(m.debe)}</div></div><button class="btn sm" data-a="spRepay" data-e="${esc(m.email)}">Devolver del fondo</button></div>`).join('')}</div>`;
+  // categorías del mes
+  const cats=Object.entries(st.byCat).sort((a,b)=>b[1]-a[1]);
+  if(cats.length) h+=`<div class="card"><h3>¿En qué se fue en ${mname}?</h3>${cats.map(([k,v])=>{const c=spCat(k),p=st.gastoMes?v/st.gastoMes*100:0;return `<div style="margin:8px 0"><div class="between sm"><span>${c.e} ${c.n}</span><b>${fmt(v)} <span class="mut xs">${Math.round(p)}%</span></b></div><div class="bar" style="height:7px"><i style="width:${p}%;background:${c.c}"></i></div></div>`}).join('')}</div>`;
+  // últimos
+  const last=st.mItems.slice().sort(sortTx).slice(0,6);
+  h+=`<div class="card"><div class="between"><h3>Movimientos de ${mname}</h3>${st.mItems.length>6?`<button class="link sm" data-a="go" data-t="movs">Ver todos</button>`:''}</div>${last.length?last.map(x=>spRow(x,d)).join(''):`<div class="empty"><i>🧺</i>Nada anotado en ${mname} todavía.</div>`}</div>`;
+  return h;
+}
+function vSpMovs(){
+  const sp=Spaces.get(ui.space), d=Spaces.data(sp.id);
+  const list=d.items.filter(x=>x.date.startsWith(ui.month)).sort(sortTx);
+  if(!list.length) return `<div class="card empty"><i>🧺</i>No hay movimientos de ${esc(d.meta.name)} en ${monthName(ui.month)}.</div>`;
+  const days={}; list.forEach(x=>(days[x.date]=days[x.date]||[]).push(x));
+  return Object.keys(days).map(k=>`<div class="day"><span>${dayLabel(k)}</span></div><div class="card" style="padding:4px 14px">${days[k].map(x=>spRow(x,d)).join('')}</div>`).join('');
+}
+function vEspacios(){
+  let h=`<div class="card hi"><b>👥 Plata en pareja o en grupo</b><p class="sm">Un espacio compartido es un Kakeibo aparte, por ejemplo "Casa". Los dos anotan aportes y gastos desde su celular y ven el mismo saldo. Lo personal de cada uno sigue siendo privado.</p></div>`;
+  if(!Sync.available()) return h+`<div class="card"><p class="sm">Para compartir hace falta configurar Google en <b>config.js</b> (ver la guía).</p></div>`;
+  if(!Sync.on()) return h+`<div class="card"><p class="sm">Primero conecta tu Google Drive: ahí vive el espacio compartido.</p><button class="btn" data-a="go" data-t="ajustes">Conectar Drive</button></div>`;
+  for(const s of Spaces.list()){ const d=Spaces.data(s.id), st=spStats(d,ui.month);
+    h+=`<div class="card" data-a="space" data-id="${esc(s.id)}" style="cursor:pointer"><div class="between"><b>${esc(s.emoji)} ${esc(s.name)}</b><b>${fmt(st.fondo)}</b></div><div class="xs mut">${spMembers(d).map(m=>esc(spName(d,m.email))).join(', ')} · toca para abrir</div></div>`; }
+  h+=`<div class="grid2" style="margin-bottom:12px"><button class="btn" data-a="spNew">Crear un espacio</button><button class="btn ghost" data-a="spJoin">Unirme a uno</button></div>`;
+  return h;
+}
+function vSpAjustes(){
+  const sp=Spaces.get(ui.space); if(!sp) return vEspacios();
+  const d=Spaces.data(sp.id), mem=spMembers(d);
+  return `<div class="card"><h3>Nombre del espacio</h3><input class="f" data-ch="spName" value="${esc(d.meta.name)}" maxlength="30">
+    <div class="chips" style="margin-top:8px">${SP_EMOJIS.map(e=>`<button class="chip ${d.meta.emoji===e?'on':''}" data-a="spEmoji" data-v="${e}">${e}</button>`).join('')}</div></div>
+  <div class="card"><h3>Integrantes y cuánto aporta cada uno</h3><p class="xs mut">Pon el porcentaje que le corresponde a cada uno (por ejemplo 50 y 50, o 60 y 40). Sirve para saber si alguien va atrasado.</p>
+    ${mem.map(m=>`<div class="li"><div class="grow"><b class="sm">${esc(spName(d,m.email))}</b><div class="xs mut">${esc(m.email)}</div></div><input class="f" style="width:84px;text-align:right" data-ch="spSplit" data-e="${esc(m.email)}" inputmode="numeric" value="${Math.round(Number(d.meta.split[m.email])||100/mem.length)}"><span class="sm">%</span></div>`).join('')}</div>
+  ${sp.owner?`<div class="card"><h3>Invitar a alguien</h3><p class="xs mut">Escribe su Gmail. Le llega un correo de Google Drive y desde su app toca "Unirme a uno".</p>
+    <form data-form="spInvite" class="row" style="flex-wrap:nowrap"><input class="f" name="email" type="email" placeholder="correo@gmail.com" required><button class="btn sm">Invitar</button></form></div>`:''}
+  <div class="card"><h3>Tu nombre en los espacios</h3><input class="f" data-ch="myName" value="${esc(S.settings.myName||'')}" placeholder="Ej: Camilo" maxlength="20"></div>
+  <button class="btn full ghost" data-a="spLeave" style="color:var(--bad);border-color:var(--bad);margin-bottom:12px">Quitar este espacio de mi celular</button>`;
+}
+function openSpAdd(pre){
+  const accs=activeAccs();
+  ui.sform=Object.assign({id:null,kind:'g',amount:0,cat:'mer',paidBy:'fund',who:myEmail(),note:'',date:ui.month===ymOf(todayStr())?todayStr():ui.month+'-01',mirror:true,acc:lastAcc()||(accs[0]&&accs[0].id)||''},pre||{});
+  openModal('spx');
+}
+function mSpx(){
+  const f=ui.sform, sp=Spaces.get(ui.space), d=Spaces.data(sp.id), mem=spMembers(d), isG=f.kind==='g';
+  if(f.kind==='re') return `<div class="between" style="margin-bottom:8px"><h2>Devolución</h2><button class="ib" data-a="closeModal">✕</button></div><p class="sm">El fondo le devolvió <b>${fmt(f.amount)}</b> a ${esc(spName(d,f.to))} el ${f.date.split('-').reverse().join('/')}.</p><button class="btn full ghost" data-a="spDel" style="margin-top:12px;color:var(--bad);border-color:var(--bad)">Eliminar</button>`;
+  const accs=activeAccs();
+  return `<div class="between" style="margin-bottom:10px"><h2>${f.id?'Editar':'Anotar'} en ${esc(sp.emoji)} ${esc(d.meta.name)}</h2><button class="ib" data-a="closeModal">✕</button></div>
+    ${f.id?'':`<div class="seg" style="margin-bottom:12px"><button class="${isG?'on':''}" data-a="sfKind" data-v="g">Gasto de la casa</button><button class="${!isG?'on':''}" data-a="sfKind" data-v="ap">Aporte al fondo</button></div>`}
+    <input class="f money" id="sAmt" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.amount)}" autocomplete="off">
+    ${isG?`<label class="l">¿En qué?</label><div class="cats3">${SP_CATS.map(c=>`<button class="${f.cat===c.id?'on':''}" style="${f.cat===c.id?`border-color:${c.c};background:${c.c}22`:''}" data-a="sfCat" data-v="${c.id}"><span>${c.e}</span>${c.n}</button>`).join('')}</div>
+      <label class="l">¿Con qué plata se pagó?</label><div class="chips"><button class="chip ${f.paidBy==='fund'?'on':''}" data-a="sfPaid" data-v="fund">🏦 Del fondo común</button>${mem.map(m=>`<button class="chip ${f.paidBy===m.email?'on':''}" data-a="sfPaid" data-v="${esc(m.email)}">👤 ${m.email===myEmail()?'Yo, de mi bolsillo':'Lo pagó '+esc(spName(d,m.email))}</button>`).join('')}</div>
+      ${f.paidBy!=='fund'?`<p class="xs mut">La casa le quedará debiendo esta plata a ${f.paidBy===myEmail()?'ti':esc(spName(d,f.paidBy))}. Luego la pueden devolver desde el fondo.</p>`:''}`
+    :`<label class="l">¿Quién aporta?</label><div class="chips">${mem.map(m=>`<button class="chip ${f.who===m.email?'on':''}" data-a="sfWho" data-v="${esc(m.email)}">${esc(spName(d,m.email))}</button>`).join('')}</div>
+      ${!f.id&&f.who===myEmail()?`<label class="row sm" style="margin-top:12px;gap:10px;flex-wrap:nowrap;cursor:pointer"><input type="checkbox" data-ch="sfMirror" ${f.mirror?'checked':''} style="width:20px;height:20px;accent-color:var(--acc);flex:none"> Anotarlo también en mi Kakeibo personal (como gasto de Supervivencia › Casa)</label>
+        ${f.mirror&&accs.length?`<label class="l">¿De qué cuenta salió?</label><div class="chips">${accs.map(a=>`<button class="chip ${f.acc===a.id?'on':''}" data-a="sfAcc" data-v="${a.id}"><span class="bdot" style="background:${bankBy(a.bank).c}"></span>${esc(accLabel(a))}</button>`).join('')}</div>`:''}`:''}`}
+    <label class="l">Nota</label><input class="f" id="sNote" value="${esc(f.note)}" maxlength="80" placeholder="${isG?'Ej: Mercado del mes en D1':'Ej: Aporte de la quincena'}">
+    <label class="l">Fecha</label><input class="f" id="sDate" type="date" value="${f.date}">
+    <button class="btn full" data-a="spSave" style="margin-top:16px">${f.id?'Guardar cambios':'Guardar'}</button>
+    ${f.id?`<button class="btn full ghost" data-a="spDel" style="margin-top:8px;color:var(--bad);border-color:var(--bad)">Eliminar</button>`:''}`;
+}
+function readSp(){ const f=ui.sform; if(!f) return; const a=$('#sAmt'),n=$('#sNote'),dd=$('#sDate'); if(a) f.amount=parseAmt(a.value); if(n) f.note=n.value; if(dd&&dd.value) f.date=dd.value; }
+function mSpNew(){
+  const f=ui.modal.data;
+  return `<div class="between" style="margin-bottom:8px"><h2>Crear espacio compartido</h2><button class="ib" data-a="closeModal">✕</button></div>
+    <label class="l">¿Cómo se llama?</label><input class="f" id="nName" value="${esc(f.name||'Casa')}" maxlength="30">
+    <div class="chips" style="margin-top:8px">${SP_EMOJIS.map(e=>`<button class="chip ${f.emoji===e?'on':''}" data-a="nEmoji" data-v="${e}">${e}</button>`).join('')}</div>
+    <label class="l">Tu nombre</label><input class="f" id="nMe" value="${esc(f.me||S.settings.myName||'')}" placeholder="Ej: Camilo" maxlength="20">
+    <label class="l">Gmail de la otra persona <span class="mut">(la invitas ahora o después)</span></label><input class="f" id="nMail" type="email" value="${esc(f.mail||'')}" placeholder="correo@gmail.com">
+    <p class="xs mut" style="margin-top:10px">Se crea un archivo "Mi Kakeibo · ${esc(f.name||'Casa')}" en tu Google Drive, compartido solo con esa persona.</p>
+    <button class="btn full" data-a="spCreate" style="margin-top:8px">Crear</button>`;
+}
+function mSpJoin(){
+  return `<div class="between" style="margin-bottom:8px"><h2>Unirme a un espacio</h2><button class="ib" data-a="closeModal">✕</button></div>
+    <p class="sm"><b>1.</b> Pídele a la otra persona que te invite con tu Gmail (${esc(myEmail()||'tu correo')}). Te llega un correo de Google Drive.</p>
+    <p class="sm"><b>2.</b> Toca el botón de abajo y elige el archivo <b>"Mi Kakeibo · …"</b> que te compartieron.</p>
+    <label class="l">Tu nombre</label><input class="f" id="jMe" value="${esc(S.settings.myName||'')}" placeholder="Ej: Stephanny" maxlength="20">
+    <button class="btn full" data-a="spPick" style="margin-top:14px">Buscar en mi Google Drive</button>`;
+}
+
+/* ---------- tema ---------- */
+function applyTheme(){
+  const t=S.settings.theme;
+  const dark = t==='dark' || (t==='auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark?'dark':'light';
+  document.querySelector('meta[name=theme-color]').content = dark?'#111318':'#f3f4f7';
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',applyTheme);
+
+/* ---------- navegación ---------- */
+const MAIN = ['inicio','movs','resumen','mas'];
+const TITLES = {cuentas:'Cuentas y tarjetas', cuenta:'Cuenta', espacios:'Espacios compartidos', spajustes:'Ajustes del espacio', inicio:'Mi Kakeibo', movs:'Movimientos', resumen:'Resumen', mas:'Más', mes:'Planear el mes', reflexion:'Reflexión del mes', metas:'Metas de ahorro', deseos:'Lista de deseos', ajustes:'Ajustes', historial:'Historial', ayuda:'Cómo usar Mi Kakeibo'};
+let ui = {tab:'inicio', stack:[], month:ymOf(todayStr()), filter:'all', q:'', form:null, modal:null};
+let ignorePop=0;
+function go(t){
+  if(MAIN.includes(t)){ ui.stack=[]; ui.tab=t; }
+  else { ui.stack.push(ui.tab); ui.tab=t; history.pushState({k:t},''); }
+  render(); scrollTo(0,0);
+}
+function back(){ history.back(); }
+addEventListener('popstate',()=>{
+  if(ignorePop>0){ ignorePop--; return; }
+  if(ui.modal){ closeModal(true); return; }
+  if(ui.stack.length){ ui.tab=ui.stack.pop(); render(); return; }
+  if(ui.tab!=='inicio'){ ui.tab='inicio'; render(); history.pushState({k:'root'},''); }
+});
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2400); }
+
+/* ---------- render principal ---------- */
+function render(){
+  applyTheme();
+  const sub=!MAIN.includes(ui.tab);
+  const showMonth=['inicio','movs','resumen','mes','reflexion'].includes(ui.tab);
+  let h=`<div class="top">${sub?`<button class="ib" data-a="back" aria-label="Atrás">←</button>`:''}<h1>${TITLES[ui.tab]||''}</h1>
+    ${ui.tab==='inicio'?`${Sync.available()?`<button class="ib" id="cloudBtn" data-a="cloud" aria-label="Respaldo en Drive">${cloudIcon()}</button>`:''}<button class="ib" data-a="go" data-t="ayuda" aria-label="Ayuda">?</button>`:''}</div><div class="wrap">`;
+  if(showMonth) h+=monthNav();
+  if(ui.tab==='inicio'||ui.tab==='movs') h+=spaceSwitch();
+  if(ui.space && !Spaces.get(ui.space)) ui.space=null;
+  h+=(ui.space&&ui.tab==='inicio'?vSpace:ui.space&&ui.tab==='movs'?vSpMovs:{cuentas:vCuentas, cuenta:vCuenta, espacios:vEspacios, spajustes:vSpAjustes, inicio:vInicio, movs:vMovs, resumen:vResumen, mas:vMas, mes:vMes, reflexion:vReflexion, metas:vMetas, deseos:vDeseos, ajustes:vAjustes, historial:vHistorial, ayuda:vAyuda}[ui.tab]||vInicio)();
+  h+=`</div>`+nav();
+  $('#app').innerHTML=h;
+  if(ui.tab==='movs' && !ui.space) fillTx();
+}
+function nav(){
+  const b=(t,i,l)=>`<button class="${ui.tab===t||(t==='mas'&&!MAIN.includes(ui.tab))?'on':''}" data-a="go" data-t="${t}"><i>${i}</i>${l}</button>`;
+  return `<nav class="bot">${b('inicio','🏠','Inicio')}${b('movs','📒','Movimientos')}<div><button class="fab" data-a="add" aria-label="Agregar">+</button></div>${b('resumen','📊','Resumen')}${b('mas','☰','Más')}</nav>`;
+}
+function monthNav(){
+  const cur=ymOf(todayStr());
+  return `<div class="mnav"><button class="ib" data-a="month" data-k="-1">‹</button>
+    <div style="text-align:center"><b>${monthName(ui.month)}</b>${ui.month!==cur?`<div><button class="link sm" data-a="monthNow">Ir al mes actual</button></div>`:''}</div>
+    <button class="ib" data-a="month" data-k="1">›</button></div>`;
+}
+
+/* ---------- INICIO ---------- */
+function vInicio(){
+  const ym=ui.month, st=stats(ym), m=st.m, t=todayStr(), isCur=ym===ymOf(t);
+  let h='';
+  if(!m.setup){
+    const prev=addMonth(ym,-1), pm=S.months[prev];
+    h+=`<div class="card hi"><h3>🌱 Planea ${MONTHS[ymParts(ym)[1]-1]}</h3>
+      <p class="sm">El Kakeibo empieza antes de gastar: cuánto te entra, qué es fijo y cuánto quieres ahorrar.</p>
+      <div class="row" style="margin-top:10px"><button class="btn" data-a="go" data-t="mes">Planear el mes</button>
+      ${pm&&pm.setup?`<button class="btn ghost" data-a="copyPrev">Copiar de ${MONTHS[ymParts(prev)[1]-1]}</button>`:''}</div></div>`;
+  }
+  const pct = st.disp>0 ? Math.min(100, st.gastado/st.disp*100) : (st.gastado>0?100:0);
+  h+=`<div class="card"><div class="between"><span class="mut sm">Te queda para gastar</span>${m.setup?`<button class="link sm" data-a="go" data-t="mes">Editar plan</button>`:''}</div>
+    <div class="big ${st.restante<0?'neg':''}">${fmt(st.restante)}</div>
+    <div class="bar"><i style="width:${pct}%;background:${pctColor(pct)}"></i></div>
+    <div class="sm mut">Gastado ${fmt(st.gastado)} de ${fmt(st.disp)} disponibles</div>
+    <div class="kpis"><div><span>Ingresos</span><b>${fmt(st.ing)}</b></div><div><span>Fijos</span><b>${fmt(st.fijos)}</b></div><div><span>Ahorro 🎯</span><b>${fmt(st.ahorro)}</b></div></div></div>`;
+
+  if(isCur && st.disp>0){
+    const dim=daysIn(ym), d=new Date().getDate(), left=dim-d+1;
+    const before=sum(st.gastos.filter(x=>x.date<t)), hoy=sum(st.gastos.filter(x=>x.date===t));
+    const base=Math.max(0,(st.disp-before)/left), queda=base-hoy;
+    const ritmo=st.disp*d/dim, dif=st.gastado-ritmo;
+    h+=`<div class="card"><div class="between"><div><div class="mut sm">Hoy puedes gastar</div>
+      <div style="font-size:1.6rem;font-weight:800" class="${queda<0?'neg':''}">${fmt(queda)}</div>
+      <div class="xs mut">de ${fmt(base)} diarios · quedan ${left} día${left>1?'s':''} del mes</div></div>
+      <div style="font-size:2.2rem">${queda<0?'🔥':queda<base*.3?'😬':'😌'}</div></div>
+      <p class="sm" style="margin-top:10px">${dif>0?`⚠️ Vas <b>${fmt(dif)}</b> por encima del ritmo ideal del mes.`:`👍 Vas <b>${fmt(-dif)}</b> por debajo del ritmo ideal. ¡Bien!`}</p></div>`;
+  }
+
+  h+=creditAlerts();
+  h+=accSection();
+  // pagos fijos próximos / pendientes
+  if(isCur){
+    const d=new Date().getDate();
+    const pend=m.fixed.filter(f=>!f.paid && f.day && f.day-d<=3).sort((a,b)=>a.day-b.day);
+    if(pend.length) h+=`<div class="card warn"><h3>📅 Pagos fijos cerca</h3>${pend.map(f=>`<div class="li"><div class="grow"><b>${esc(f.name)}</b><div class="xs mut">${f.day<d?'Venció el día '+f.day:f.day===d?'Vence hoy':'Vence el día '+f.day}</div></div><span class="amt">${fmt(f.amount)}</span><button class="btn sm" data-a="paid" data-id="${f.id}">Pagado</button></div>`).join('')}</div>`;
+  }
+  // deseos listos
+  const ready=S.wishes.filter(w=>w.status==='wait' && daysBetween(w.created,t)>=(w.days||S.settings.wishDays));
+  if(ready.length) h+=`<div class="card hi"><h3>⏳ Ya pasó la espera</h3><p class="sm">${ready.length===1?`Tu deseo <b>${esc(ready[0].name)}</b> está listo para decidir.`:`${ready.length} deseos están listos para decidir.`} ¿Todavía lo quieres?</p><button class="btn sm" data-a="go" data-t="deseos" style="margin-top:6px">Decidir ahora</button></div>`;
+
+  // categorías
+  h+=`<div class="card"><div class="between"><h3>Los 4 pilares</h3><button class="link sm" data-a="go" data-t="resumen">Ver resumen</button></div>`;
+  for(const c of CATS){
+    const g=st.byCat[c.id]||0, b=Number(m.budgets[c.id])||0;
+    const p=b>0?Math.min(100,g/b*100):(st.gastado>0?g/st.gastado*100:0);
+    h+=`<div class="cat" data-a="catMovs" data-c="${c.id}"><div class="dot" style="background:${c.color}22">${c.emoji}</div>
+      <div class="grow"><div class="between"><b class="sm">${c.name}</b><span class="sm amt">${fmt(g)}${b?` <span class="mut xs">/ ${fmt(b)}</span>`:''}</span></div>
+      <div class="bar" style="height:7px"><i style="width:${p}%;background:${b>0?pctColor(p):c.color}"></i></div>
+      ${b>0?`<div class="xs ${g>b?'neg':'mut'}">${g>b?'Te pasaste por '+fmt(g-b):'Quedan '+fmt(b-g)}</div>`:''}</div></div>`;
+  }
+  h+=`</div>`;
+
+  // últimos
+  const last=[...st.tx].sort(sortTx).slice(0,5);
+  h+=`<div class="card"><div class="between"><h3>Últimos movimientos</h3>${st.tx.length?`<button class="link sm" data-a="go" data-t="movs">Ver todos</button>`:''}</div>`;
+  h+= last.length? last.map(txRow).join('') : `<div class="empty"><i>📝</i>Aún no hay movimientos este mes.<br>Toca <b>+</b> para anotar el primero.</div>`;
+  h+=`</div>`;
+
+  // recordatorio de respaldo
+  const ss=Sync.status();
+  if(ss==='login' || (Sync.on() && ss==='pending' && !Sync.tokenOk() && navigator.onLine))
+    h=`<div class="card warn"><div class="between"><div><b>☁️ Hay cambios sin respaldar</b><div class="xs mut">${ss==='login'?'Google pide que vuelvas a iniciar sesión.':'Toca para guardarlos en tu Drive.'}</div></div><button class="btn sm" data-a="driveSync">Respaldar</button></div></div>`+h;
+  const lb=S.settings.lastBackup;
+  if(!Sync.on() && S.tx.length>=10 && (!lb || daysBetween(lb,t)>=14)) h+=`<div class="card warn"><h3>💾 Haz una copia de seguridad</h3><p class="sm">${lb?'Tu último respaldo fue hace '+daysBetween(lb,t)+' días.':'Aún no has hecho ningún respaldo.'} Tus datos viven solo en este celular: si se borra la app o el navegador, se pierden.</p><div class="row" style="margin-top:6px">${Sync.available()?`<button class="btn sm" data-a="go" data-t="ajustes">Activar Google Drive</button>`:''}<button class="btn sm ${Sync.available()?'ghost':''}" data-a="backup">Descargar respaldo</button></div></div>`;
+  return h;
+}
+function sortTx(a,b){ return a.date<b.date?1:a.date>b.date?-1:(b.ts||0)-(a.ts||0); }
+function txRow(t){
+  const a=accById(t.acc), an=a?' · '+esc(a.name):'';
+  const row=(ic,bg,title,subt,amt,cls)=>`<div class="tx" data-a="edit" data-id="${t.id}"><div class="dot" style="background:${bg}">${ic}</div><div class="grow"><div class="ell"><b class="sm">${title}</b></div><div class="xs mut ell">${subt}</div></div><span class="amt ${cls}">${amt}</span></div>`;
+  if(t.type==='tr'){ const to=accById(t.to); return row('↔️','var(--card2)', esc(t.note)||(to&&to.type==='cre'?'Pago de tarjeta':'Movimiento entre cuentas'), `${a?esc(a.name):'?'} → ${to?esc(to.name):'?'} · no es gasto`, fmt(t.amount), 'mut'); }
+  if(t.type==='fix') return row('🧾','var(--card2)', esc(t.note)||'Gasto fijo', 'Gasto fijo pagado'+an, '-'+fmt(t.amount), '');
+  if(t.type==='in'||t.type==='rin') return row('💰','var(--acc2)', esc(t.note)||'Ingreso', (t.type==='rin'?'Ingreso del plan':'Ingreso extra')+an, '+'+fmt(t.amount), 'pos');
+  const c=catById(t.cat), mood=moodById(t.mood);
+  return row(c.emoji, c.color+'22', esc(t.note||t.sub||c.name), esc(c.name+(t.sub?' · '+t.sub:''))+(mood?' · '+mood.emoji:'')+an, '-'+fmt(t.amount), '');
+}
+
+/* ---------- MOVIMIENTOS ---------- */
+function vMovs(){
+  const f=ui.filter;
+  const chip=(id,l)=>`<button class="chip ${f===id?'on':''}" data-a="filter" data-f="${id}">${l}</button>`;
+  return `<input class="f" id="q" type="search" placeholder="🔎 Buscar por nota o subcategoría" value="${esc(ui.q)}" style="margin-bottom:10px">
+    <div class="chips scroll" style="margin-bottom:6px">${chip('all','Todos')}${CATS.map(c=>chip(c.id,c.emoji+' '+c.name)).join('')}${chip('in','💰 Ingresos')}${chip('imp','⚡ Impulsos')}</div>
+    <div id="txlist"></div>`;
+}
+function fillTx(){
+  const el=$('#txlist'); if(!el) return;
+  const q=ui.q.trim().toLowerCase();
+  let list=S.tx.filter(t=>t.date.startsWith(ui.month));
+  if(ui.filter==='in') list=list.filter(t=>t.type==='in'||t.type==='rin');
+  else if(ui.filter==='imp') list=list.filter(t=>t.mood==='imp');
+  else if(ui.filter!=='all') list=list.filter(t=>isOut(t)&&t.cat===ui.filter);
+  if(q) list=list.filter(t=>((t.note||'')+' '+(t.sub||'')+' '+catById(t.cat).name).toLowerCase().includes(q));
+  list.sort(sortTx);
+  if(!list.length){ el.innerHTML=`<div class="card empty"><i>🫙</i>No hay movimientos con ese filtro en ${monthName(ui.month)}.</div>`; return; }
+  const tot=sum(list.filter(isOut));
+  let h=`<div class="sm mut" style="margin:4px">${list.length} movimiento${list.length>1?'s':''}${tot?' · gastos '+fmt(tot):''}</div>`;
+  const days={}; list.forEach(t=>(days[t.date]=days[t.date]||[]).push(t));
+  for(const d of Object.keys(days)){
+    const g=sum(days[d].filter(isOut));
+    h+=`<div class="day"><span>${dayLabel(d)}</span><span>${g?'-'+fmt(g):''}</span></div><div class="card" style="padding:4px 14px">${days[d].map(txRow).join('')}</div>`;
+  }
+  el.innerHTML=h;
+}
+
+/* ---------- RESUMEN ---------- */
+function weeksOf(ym){
+  const [y,m]=ymParts(ym), dim=daysIn(ym), w=[]; let cur=null;
+  for(let d=1; d<=dim; d++){ const wd=(new Date(y,m-1,d).getDay()+6)%7; if(!cur||wd===0){ cur={from:d,to:d}; w.push(cur); } cur.to=d; }
+  return w;
+}
+function donut(parts,total){
+  const R=60, C=2*Math.PI*R; let off=0;
+  const segs=parts.filter(p=>p.v>0).map(p=>{ const len=total?p.v/total*C:0;
+    const s=`<circle r="${R}" cx="85" cy="85" fill="none" stroke="${p.color}" stroke-width="22" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 85 85)"/>`; off+=len; return s; }).join('');
+  return `<svg viewBox="0 0 170 170" width="170" height="170"><circle r="${R}" cx="85" cy="85" fill="none" stroke="var(--card2)" stroke-width="22"/>${segs}</svg>`;
+}
+function vResumen(){
+  const ym=ui.month, st=stats(ym), pv=stats(addMonth(ym,-1));
+  if(!st.tx.length && !st.m.setup) return `<div class="card empty"><i>📊</i>Todavía no hay datos en ${monthName(ym)}.</div>`;
+  let h=`<div class="card"><h3>¿En qué se fue la plata?</h3><div class="donutw">${donut(CATS.map(c=>({v:st.byCat[c.id],color:c.color})),st.gastado)}
+    <div class="c"><div><div class="xs mut">Gastado</div><b>${fmt(st.gastado)}</b></div></div></div>
+    <div class="legend">${CATS.map(c=>`<div><span style="background:${c.color}"></span>${c.name}<br><b>${fmt(st.byCat[c.id])}</b> <span class="mut xs">${st.gastado?Math.round(st.byCat[c.id]/st.gastado*100):0}%</span></div>`).join('')}</div></div>`;
+
+  // balance
+  const meta=st.ahorro, real=st.ahorroReal;
+  h+=`<div class="card"><h3>Balance del mes</h3>
+    <div class="li"><span class="grow">Ingresos</span><b class="pos">${fmt(st.ing)}</b></div>
+    <div class="li"><span class="grow">Gastos fijos</span><b>-${fmt(st.fijos)}</b></div>
+    <div class="li"><span class="grow">Gastos del mes</span><b>-${fmt(st.gastado)}</b></div>
+    <div class="li"><span class="grow"><b>Lo que te queda (ahorro real)</b></span><b class="${real<0?'neg':'pos'}">${fmt(real)}</b></div>
+    ${meta?`<p class="sm" style="margin-top:8px">${real>=meta?`🎉 Vas cumpliendo tu meta de ahorro de ${fmt(meta)}.`:`🎯 Para tu meta de ${fmt(meta)} te faltan <b>${fmt(meta-real)}</b>.`}</p>`:''}</div>`;
+
+  // semanas
+  const weeks=weeksOf(ym), dim=daysIn(ym);
+  h+=`<div class="card"><h3>Semana por semana</h3><p class="xs mut">El presupuesto semanal sale de repartir lo disponible según los días de cada semana.</p>`;
+  weeks.forEach((w,i)=>{
+    const g=sum(st.gastos.filter(t=>{const d=+t.date.slice(8);return d>=w.from&&d<=w.to;}));
+    const b=st.disp>0?st.disp*(w.to-w.from+1)/dim:0, p=b>0?Math.min(100,g/b*100):0;
+    h+=`<div style="margin:10px 0"><div class="between sm"><span>Semana ${i+1} <span class="mut xs">(${w.from}–${w.to})</span></span><b>${fmt(g)}${b?` <span class="mut xs">/ ${fmt(b)}</span>`:''}</b></div><div class="bar" style="height:7px"><i style="width:${p}%;background:${pctColor(p)}"></i></div></div>`;
+  });
+  h+=`</div>`;
+
+  // día a día
+  const perDay=Array.from({length:dim},(_,i)=>sum(st.gastos.filter(t=>+t.date.slice(8)===i+1)));
+  const mx=Math.max(1,...perDay), avg=st.disp>0?st.disp/dim:0, W=dim*10;
+  const bars=perDay.map((v,i)=>`<rect x="${i*10+1.5}" y="${90-v/Math.max(mx,avg)*80}" width="7" height="${v/Math.max(mx,avg)*80}" rx="2" fill="${avg&&v>avg?'var(--warn)':'var(--acc)'}"/>`).join('');
+  const avgY=avg?90-avg/Math.max(mx,avg)*80:null;
+  h+=`<div class="card"><h3>Día a día</h3><svg viewBox="0 0 ${W} 104" width="100%" preserveAspectRatio="none" style="height:120px">${bars}
+    ${avgY!==null?`<line x1="0" x2="${W}" y1="${avgY}" y2="${avgY}" stroke="var(--mut)" stroke-dasharray="3 3" stroke-width="1"/>`:''}
+    <text x="0" y="102">1</text><text x="${W/2-5}" y="102">${Math.ceil(dim/2)}</text><text x="${W-12}" y="102">${dim}</text></svg>
+    <p class="xs mut">${avg?`Línea punteada: tu límite diario (${fmt(avg)}). En naranja, los días que te pasaste.`:'Planea el mes para ver tu límite diario.'}</p>
+    ${st.gastado?`<p class="sm">Día más caro: <b>${perDay.indexOf(mx)+1} de ${MONTHS[ymParts(ym)[1]-1]}</b> (${fmt(mx)})</p>`:''}</div>`;
+
+  // emociones
+  if(st.gastado){
+    const tm=st.byMood.nec+st.byMood.que+st.byMood.imp;
+    h+=`<div class="card"><h3>¿Cómo gastaste?</h3><p class="xs mut">Según lo que marcas al anotar cada gasto.</p>
+      ${MOODS.map(md=>{const v=st.byMood[md.id],p=tm?v/tm*100:0;return `<div style="margin:8px 0"><div class="between sm"><span>${md.emoji} ${md.name}</span><b>${fmt(v)} <span class="mut xs">${Math.round(p)}%</span></b></div><div class="bar" style="height:7px"><i style="width:${p}%;background:${md.id==='imp'?'var(--bad)':md.id==='que'?'var(--warn)':'var(--acc)'}"></i></div></div>`}).join('')}
+      ${st.byMood.imp>0?`<p class="sm">⚡ Si hubieras evitado los impulsos, tendrías <b>${fmt(st.byMood.imp)}</b> más este mes.</p>`:''}</div>`;
+    // top subcategorías
+    const subs={}; st.gastos.forEach(t=>{const k=catById(t.cat).emoji+' '+(t.sub||catById(t.cat).name); subs[k]=(subs[k]||0)+t.amount;});
+    const top=Object.entries(subs).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    h+=`<div class="card"><h3>Top 5 en lo que más gastas</h3>${top.map(([k,v],i)=>`<div class="li"><span class="mut sm">${i+1}.</span><span class="grow sm">${esc(k)}</span><b class="sm">${fmt(v)}</b></div>`).join('')}</div>`;
+  }
+  // comparación
+  if(pv.gastado||pv.ing){
+    h+=`<div class="card"><h3>Comparado con ${MONTHS[ymParts(addMonth(ym,-1))[1]-1]}</h3>
+      <table class="t"><tr><th>Pilar</th><th>Antes</th><th>Ahora</th><th>Cambio</th></tr>
+      ${CATS.map(c=>{const a=pv.byCat[c.id],b=st.byCat[c.id],d=b-a;return `<tr><td>${c.emoji} ${c.name}</td><td>${fmt(a)}</td><td>${fmt(b)}</td><td class="${d>0?'neg':d<0?'pos':''}">${d>0?'▲':d<0?'▼':''} ${fmt(Math.abs(d))}</td></tr>`}).join('')}
+      <tr><td><b>Total</b></td><td><b>${fmt(pv.gastado)}</b></td><td><b>${fmt(st.gastado)}</b></td><td class="${st.gastado>pv.gastado?'neg':'pos'}"><b>${fmt(Math.abs(st.gastado-pv.gastado))}</b></td></tr></table></div>`;
+  }
+  h+=`<button class="btn full ghost" data-a="go" data-t="reflexion" style="margin-bottom:12px">📝 Hacer la reflexión del mes</button>`;
+  return h;
+}
+
+/* ---------- MÁS ---------- */
+function vMas(){
+  const it=(t,i,b,s)=>`<button data-a="go" data-t="${t}"><i>${i}</i><div class="grow"><b>${b}</b><span class="xs mut">${s}</span></div><span class="mut">›</span></button>`;
+  const w=S.wishes.filter(x=>x.status==='wait').length;
+  return `<div class="card menu">
+    ${it('cuentas','💳','Cuentas y tarjetas','Saldos, tarjetas de crédito y mover plata')}
+    ${it('espacios','👥','Espacios compartidos','Plata de la casa en pareja o en grupo')}
+    ${it('mes','🗓️','Planear el mes','Ingresos, gastos fijos, ahorro y presupuestos')}
+    ${it('reflexion','📝','Reflexión del mes','Las 4 preguntas del Kakeibo y cierre del mes')}
+    ${it('metas','🎯','Metas de ahorro','Huchas para lo que quieres lograr')}
+    ${it('deseos','⏳','Lista de deseos'+(w?` <span class="pill">${w}</span>`:''),'Espera antes de comprar y evita impulsos')}
+    ${it('historial','📚','Historial','Todos tus meses, uno al lado del otro')}
+    </div><div class="card menu">
+    ${it('ajustes','⚙️','Ajustes y respaldo','Tema, PIN, subcategorías, copias de seguridad')}
+    ${it('ayuda','💡','Cómo usar Mi Kakeibo','El método en 1 minuto')}
+    <button data-a="tour"><i>🎓</i><div class="grow"><b>Ver el tutorial otra vez</b><span class="xs mut">Los 6 pasos de bienvenida</span></div><span class="mut">›</span></button>
+    </div>
+    ${installBtn()}
+    <p class="xs mut" style="text-align:center">Mi Kakeibo v${APP_VERSION} · Sin anuncios · Sin internet · Tus datos solo en tu celular</p>`;
+}
+let deferredInstall=null;
+addEventListener('beforeinstallprompt',e=>{ e.preventDefault(); deferredInstall=e; if(ui.tab==='mas') render(); });
+function installBtn(){ return deferredInstall?`<button class="btn full" data-a="install" style="margin-bottom:12px">📲 Instalar como app</button>`:''; }
+
+/* ---------- PLANEAR MES ---------- */
+function vMes(){
+  const ym=ui.month, m=M(ym), st=stats(ym);
+  const prev=addMonth(ym,-1), pm=S.months[prev];
+  let h='';
+  if(pm && pm.setup && !m.setup) h+=`<button class="btn full ghost" data-a="copyPrev" style="margin-bottom:12px">📋 Copiar el plan de ${MONTHS[ymParts(prev)[1]-1]}</button>`;
+  // ingresos
+  h+=`<div class="card"><h3>💰 1. ¿Cuánto te entra?</h3><p class="xs mut">Sueldo, apoyo del SENA, clientes fijos… Los ingresos extra que lleguen durante el mes los anotas con el botón +.</p>
+    ${m.income.map(i=>`<div class="li"><button class="check ${i.got?'on':''}" data-a="togInc" data-id="${i.id}" aria-label="Recibido">${i.got?'✓':''}</button><div class="grow"><div>${esc(i.name)}</div><div class="xs mut">${i.got?'Recibido':'Toca el cuadro cuando te llegue'}</div></div><b>${fmt(i.amount)}</b><button class="del" data-a="delInc" data-id="${i.id}">✕</button></div>`).join('')}
+    <form data-form="addInc" class="grid2" style="margin-top:8px"><input class="f" name="name" placeholder="Ej: Sueldo" required><input class="f" name="amount" data-money inputmode="numeric" placeholder="$ Monto" required>
+    <button class="btn sm" style="grid-column:span 2">+ Agregar ingreso</button></form>
+    <div class="between" style="margin-top:10px"><span class="mut sm">Total ingresos</span><b>${fmt(st.ingFix)}</b></div></div>`;
+  // fijos
+  h+=`<div class="card"><h3>🧾 2. Gastos fijos</h3><p class="xs mut">Lo que pagas sí o sí cada mes: arriendo, servicios, plan de celular, cuotas… Ponle el día de pago y te aviso cuando se acerque.</p>
+    ${m.fixed.map(f=>`<div class="li"><button class="check ${f.paid?'on':''}" data-a="togPaid" data-id="${f.id}" aria-label="Pagado">${f.paid?'✓':''}</button>
+      <div class="grow"><div class="ell">${esc(f.name)}</div><div class="xs mut">${catById(f.cat).emoji} ${f.day?'Día '+f.day:'Sin día'} ${f.paid?'· pagado':''}</div></div><b>${fmt(f.amount)}</b><button class="del" data-a="delFix" data-id="${f.id}">✕</button></div>`).join('')}
+    <form data-form="addFix" style="margin-top:8px"><div class="grid2"><input class="f" name="name" placeholder="Ej: Arriendo" required><input class="f" name="amount" data-money inputmode="numeric" placeholder="$ Monto" required>
+    <select class="f" name="cat">${CATS.map(c=>`<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('')}</select><input class="f" name="day" type="number" min="1" max="31" inputmode="numeric" placeholder="Día de pago"></div>
+    <button class="btn sm full" style="margin-top:8px">+ Agregar gasto fijo</button></form>
+    <div class="between" style="margin-top:10px"><span class="mut sm">Total fijos</span><b>${fmt(st.fijos)}</b></div></div>`;
+  // ahorro
+  const base=st.ingFix-st.fijos;
+  h+=`<div class="card"><h3>🎯 3. ¿Cuánto quieres ahorrar?</h3><p class="xs mut">Se separa primero. Lo que sobra es lo que puedes gastar.</p>
+    <input class="f money" data-money data-ch="saving" inputmode="numeric" placeholder="$ 0" value="${fmtIn(m.saving)}">
+    ${base>0?`<div class="chips" style="margin-top:8px">${[10,15,20,30].map(p=>`<button class="chip" data-a="savPct" data-p="${p}">${p}% · ${fmt(Math.round(base*p/100/1000)*1000)}</button>`).join('')}</div>`:''}</div>`;
+  // presupuestos
+  const asign=CATS.reduce((a,c)=>a+(Number(m.budgets[c.id])||0),0);
+  h+=`<div class="card"><h3>🧮 4. Reparte por pilar <span class="pill">opcional</span></h3><p class="xs mut">Ponle un tope a cada pilar y te aviso cuando te acerques.</p>
+    ${CATS.map(c=>`<label class="l">${c.emoji} ${c.name} <span class="mut">· ${c.desc}</span></label><input class="f" data-money data-ch="bud" data-c="${c.id}" inputmode="numeric" placeholder="$ Sin tope" value="${fmtIn(m.budgets[c.id])}">`).join('')}
+    <div class="between" style="margin-top:12px"><span class="mut sm">Sin repartir</span><b id="sinRep" class="${st.disp-asign<0?'neg':''}">${fmt(st.disp-asign)}</b></div>
+    ${st.disp>0?`<button class="link sm" data-a="autoBud">✨ Sugerir reparto 50/20/10/20</button>`:''}</div>`;
+  h+=`<div class="card hi"><div class="between"><span>Disponible para gastar</span><b style="font-size:1.3rem" id="dispTot">${fmt(st.disp)}</b></div><p class="xs mut">Ingresos − fijos − ahorro</p></div>
+    <button class="btn full" data-a="setupDone" style="margin-bottom:12px">${m.setup?'Guardar':'✅ Listo, empezar el mes'}</button>`;
+  return h;
+}
+
+/* ---------- REFLEXIÓN ---------- */
+function vReflexion(){
+  const ym=ui.month, st=stats(ym), m=st.m, r=m.refl;
+  const cumple=st.ahorro?st.ahorroReal>=st.ahorro:null;
+  let h=`<p class="sm mut" style="margin:0 4px 12px">El corazón del Kakeibo: mirar el mes con calma y decidir cómo mejorar el siguiente.</p>
+  <div class="card">
+    <div class="q">1. ¿Cuánto dinero tengo?</div><p class="sm">Ingresos del mes: <b>${fmt(st.ing)}</b>${st.ingExtra?` (incluye ${fmt(st.ingExtra)} extra)`:''}</p>
+    <textarea class="f" data-ch="refl" data-k="a" placeholder="¿Te llegó todo lo que esperabas? ¿Algo inesperado?">${esc(r.a)}</textarea>
+    <div class="q">2. ¿Cuánto quiero ahorrar?</div><p class="sm">Meta: <b>${fmt(st.ahorro)}</b> · Lo que te queda: <b class="${st.ahorroReal<0?'neg':''}">${fmt(st.ahorroReal)}</b> ${cumple===null?'':cumple?'🎉':'😕'}</p>
+    <textarea class="f" data-ch="refl" data-k="b" placeholder="¿Cumpliste? ¿Por qué sí o por qué no?">${esc(r.b)}</textarea>
+    <div class="q">3. ¿Cuánto estoy gastando?</div><p class="sm">Gastos del mes: <b>${fmt(st.gastado)}</b> · Fijos: <b>${fmt(st.fijos)}</b>${st.byMood.imp?` · Impulsos: <b class="neg">${fmt(st.byMood.imp)}</b>`:''}</p>
+    <textarea class="f" data-ch="refl" data-k="c" placeholder="¿Qué gasto te sorprendió? ¿Cuál no valió la pena?">${esc(r.c)}</textarea>
+    <div class="q">4. ¿Cómo puedo mejorar?</div>
+    <textarea class="f" data-ch="refl" data-k="d" placeholder="Una o dos acciones concretas para el próximo mes">${esc(r.d)}</textarea>
+    <p class="xs mut">Se guarda solo mientras escribes.</p></div>`;
+  if(m.closed) h+=`<div class="card hi"><b>✅ Mes cerrado.</b> <span class="sm">Puedes seguir editando si lo necesitas.</span><br><button class="link sm" data-a="reopen">Reabrir mes</button></div>`;
+  else h+=`<button class="btn full" data-a="closeMonth" style="margin-bottom:12px">🔒 Cerrar ${MONTHS[ymParts(ym)[1]-1]}</button>`;
+  return h;
+}
+
+/* ---------- METAS ---------- */
+function vMetas(){
+  let h=`<p class="sm mut" style="margin:0 4px 12px">Huchas para lo que quieres lograr. Al cerrar cada mes puedes mandar lo que te sobró a una meta.</p>`;
+  if(!S.goals.length) h+=`<div class="card empty"><i>🐷</i>Aún no tienes metas. ¿Un PC nuevo, un viaje, un fondo de emergencia?</div>`;
+  for(const g of S.goals){
+    const p=g.target?Math.min(100,g.saved/g.target*100):0, falta=Math.max(0,g.target-g.saved);
+    let plan='';
+    if(g.date && falta>0){ const t=todayStr(); const months=Math.max(1,Math.ceil(daysBetween(t,g.date)/30.4)); plan=daysBetween(t,g.date)<0?`<span class="neg">La fecha ya pasó</span>`:`Para llegar al ${g.date.split('-').reverse().join('/')} ahorra <b>${fmt(Math.ceil(falta/months/1000)*1000)}</b> al mes`; }
+    h+=`<div class="card goal"><div class="between"><b>${g.emoji||'🎯'} ${esc(g.name)}</b><button class="del" data-a="delGoal" data-id="${g.id}">✕</button></div>
+      <div class="between sm" style="margin-top:6px"><span>${fmt(g.saved)} de ${fmt(g.target)}</span><b>${Math.round(p)}%</b></div>
+      <div class="bar"><i style="width:${p}%;background:${p>=100?'var(--ok)':'var(--acc)'}"></i></div>
+      <div class="xs mut">${p>=100?'🎉 ¡Meta cumplida!':'Te faltan '+fmt(falta)}${plan?' · '+plan:''}</div>
+      <div class="row" style="margin-top:10px"><button class="btn sm" data-a="goalMove" data-id="${g.id}" data-k="1">+ Aportar</button><button class="btn sm ghost" data-a="goalMove" data-id="${g.id}" data-k="-1">− Retirar</button></div></div>`;
+  }
+  h+=`<div class="card"><h3>Nueva meta</h3><form data-form="addGoal">
+    <div class="chips" style="margin-bottom:8px">${GOAL_EMOJIS.map((e,i)=>`<label class="chip"><input type="radio" name="emoji" value="${e}" ${i?'':'checked'} hidden>${e}</label>`).join('')}</div>
+    <input class="f" name="name" placeholder="Ej: PC para render" required>
+    <div class="grid2" style="margin-top:8px"><input class="f" name="target" data-money inputmode="numeric" placeholder="$ Meta" required><input class="f" name="date" type="date" title="Fecha límite (opcional)"></div>
+    <p class="xs mut">La fecha es opcional: si la pones, te digo cuánto ahorrar cada mes.</p>
+    <button class="btn full" style="margin-top:6px">Crear meta</button></form></div>`;
+  return h;
+}
+
+/* ---------- DESEOS ---------- */
+function vDeseos(){
+  const t=todayStr(), days=S.settings.wishDays;
+  const wait=S.wishes.filter(w=>w.status==='wait'), done=S.wishes.filter(w=>w.status!=='wait');
+  const saved=sum(done.filter(w=>w.status==='no'),'price');
+  let h=`<div class="card hi"><b>⏳ La regla de los ${days} días</b><p class="sm">¿Te antojaste de algo que no es necesario? Anótalo aquí en vez de comprarlo. Si después de ${days} días todavía lo quieres, cómpralo sin culpa. Si no, te ahorraste esa plata.</p>
+    ${saved?`<p class="sm">💪 Llevas <b>${fmt(saved)}</b> ahorrados en ${done.filter(w=>w.status==='no').length} antojo(s) que dejaste pasar.</p>`:''}</div>`;
+  h+=`<div class="card"><form data-form="addWish"><div class="grid2"><input class="f" name="name" placeholder="¿Qué quieres?" required><input class="f" name="price" data-money inputmode="numeric" placeholder="$ Precio" required></div><button class="btn full" style="margin-top:8px">Anotar y esperar</button></form></div>`;
+  if(wait.length){
+    h+=`<div class="card"><h3>En espera</h3>`;
+    for(const w of wait.sort((a,b)=>a.created<b.created?-1:1)){
+      const d=w.days||days, pas=daysBetween(w.created,t), ready=pas>=d, p=Math.min(100,pas/d*100);
+      h+=`<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="between"><b class="sm">${esc(w.name)}</b><b class="sm">${fmt(w.price)}</b></div>
+        <div class="bar" style="height:6px"><i style="width:${p}%;background:${ready?'var(--ok)':'var(--warn)'}"></i></div>
+        ${ready?`<div class="sm">¿Todavía lo quieres?</div><div class="row" style="margin-top:6px"><button class="btn sm" data-a="wishBuy" data-id="${w.id}">Sí, lo compré</button><button class="btn sm ghost" data-a="wishNo" data-id="${w.id}">Ya no lo quiero</button></div>`
+        :`<div class="between xs mut"><span>Faltan ${d-pas} día${d-pas>1?'s':''}</span><button class="link xs" data-a="wishNo" data-id="${w.id}">Ya no lo quiero</button></div>`}</div>`;
+    }
+    h+=`</div>`;
+  }
+  if(done.length){
+    h+=`<div class="card"><h3>Decididos</h3>${done.slice().reverse().slice(0,20).map(w=>`<div class="li"><span class="grow sm">${esc(w.name)}</span><span class="pill ${w.status==='no'?'ok':''}">${w.status==='no'?'Ahorrado':'Comprado'}</span><b class="sm">${fmt(w.price)}</b><button class="del" data-a="delWish" data-id="${w.id}">✕</button></div>`).join('')}</div>`;
+  }
+  return h;
+}
+
+/* ---------- HISTORIAL ---------- */
+function vHistorial(){
+  const yms=new Set(Object.keys(S.months).filter(k=>S.months[k].setup)); S.tx.forEach(t=>yms.add(ymOf(t.date)));
+  const list=[...yms].sort().reverse();
+  if(!list.length) return `<div class="card empty"><i>📚</i>Aquí verás todos tus meses cuando empieces a usar la app.</div>`;
+  let tg=0,ta=0;
+  const rows=list.map(ym=>{ const s=stats(ym); tg+=s.gastado+s.fijos; ta+=s.ahorroReal;
+    return `<tr data-a="openMonth" data-m="${ym}" style="cursor:pointer"><td style="text-transform:capitalize">${monthShort(ym)} ${ym.slice(2,4)}${S.months[ym]?.closed?' 🔒':''}</td><td>${fmt(s.ing)}</td><td>${fmt(s.gastado+s.fijos)}</td><td class="${s.ahorroReal<0?'neg':'pos'}">${fmt(s.ahorroReal)}</td></tr>`; }).join('');
+  return `<div class="card"><table class="t"><tr><th>Mes</th><th>Ingresos</th><th>Gastos</th><th>Ahorro</th></tr>${rows}</table><p class="xs mut">Gastos incluye fijos. Toca un mes para abrirlo.</p></div>
+    <div class="card"><div class="li"><span class="grow">Ahorro acumulado</span><b class="${ta<0?'neg':'pos'}">${fmt(ta)}</b></div><div class="li"><span class="grow">Promedio de gasto mensual</span><b>${fmt(tg/list.length)}</b></div></div>`;
+}
+
+/* ---------- AJUSTES ---------- */
+function vAjustes(){
+  const s=S.settings;
+  let h=`${vDrive()}<div class="card"><h3>🎨 Apariencia</h3><div class="chips">${[['auto','Automático'],['dark','Oscuro'],['light','Claro']].map(([k,l])=>`<button class="chip ${s.theme===k?'on':''}" data-a="theme" data-v="${k}">${l}</button>`).join('')}</div></div>
+  <div class="card"><h3>🔒 Bloqueo con PIN</h3><p class="xs mut">Pide un PIN de 4 dígitos al abrir la app. Es un candado de privacidad básico.</p>
+    ${s.pin?`<div class="row"><span class="pill ok">Activado</span><button class="btn sm ghost" data-a="pinOff">Quitar PIN</button></div>`:`<button class="btn sm" data-a="pinSet">Poner PIN</button>`}</div>
+  <div class="card"><h3>⏳ Lista de deseos</h3><p class="xs mut">Días de espera antes de comprar un antojo.</p><div class="chips">${[7,15,30,60].map(d=>`<button class="chip ${s.wishDays===d?'on':''}" data-a="wishDays" data-v="${d}">${d} días</button>`).join('')}</div></div>
+  <div class="card"><h3>🏷️ Subcategorías</h3><p class="xs mut">Toca ✕ para quitar una. Escribe y toca + para agregar.</p>
+    ${CATS.map(c=>`<label class="l">${c.emoji} ${c.name}</label><div class="chips">${s.subs[c.id].map((x,i)=>`<button class="chip" data-a="delSub" data-c="${c.id}" data-i="${i}">${esc(x)}<span class="x">✕</span></button>`).join('')}</div>
+      <form data-form="addSub" data-c="${c.id}" class="row" style="margin-top:6px;flex-wrap:nowrap"><input class="f" name="sub" placeholder="Nueva subcategoría" style="padding:8px 10px" required><button class="btn sm">+</button></form>`).join('')}</div>
+  <div class="card"><h3>💾 Respaldo manual (archivo)</h3><p class="xs mut">Descarga un archivo con todos tus datos para guardarlo donde quieras. Al restaurarlo, se <b>une</b> con lo que ya tienes: no se borra nada.</p>
+    <p class="sm">Último respaldo: <b>${s.lastBackup?s.lastBackup.split('-').reverse().join('/'):'nunca'}</b></p>
+    <div class="row"><button class="btn sm" data-a="backup">Descargar respaldo</button><button class="btn sm ghost" data-a="import">Unir un respaldo</button><button class="btn sm ghost" data-a="csv">Exportar a Excel (CSV)</button></div>
+    <p class="xs mut" id="persist"></p></div>
+  <div class="card"><h3>⚠️ Zona peligrosa</h3><button class="btn sm bad" data-a="wipe">Borrar todos los datos</button></div>`;
+  setTimeout(async()=>{ try{ const p=await navigator.storage?.persisted?.(); const el=$('#persist'); if(el) el.textContent=p?'🛡️ Almacenamiento protegido: el sistema no borrará tus datos por falta de espacio.':'ℹ️ Instala la app en la pantalla de inicio para que el sistema proteja tus datos.'; }catch(e){} },0);
+  return h;
+}
+
+/* ---------- AYUDA ---------- */
+function vAyuda(){
+  return `<div class="card"><h3>¿Qué es el Kakeibo?</h3><p class="sm">Es un método japonés de 1904 para controlar el dinero anotando a mano cada gasto. La idea no es solo registrar, sino <b>darte cuenta</b> de en qué se va la plata y decidir mejor.</p></div>
+  <div class="card"><h3>Cómo se usa, paso a paso</h3>
+    <p class="sm"><b>1. Al empezar el mes</b>, planea: lo que te entra, tus gastos fijos y cuánto quieres ahorrar. Lo que queda es lo que puedes gastar.</p>
+    <p class="sm"><b>2. Cada vez que gastes</b>, toca <b>+</b> y anótalo en uno de los 4 pilares:</p>
+    ${CATS.map(c=>`<p class="sm">${c.emoji} <b>${c.name}:</b> ${c.desc}.</p>`).join('')}
+    <p class="sm"><b>3. Marca cómo te sentiste</b>: ¿lo necesitabas, lo querías o fue impulso? Eso te muestra tus hábitos reales.</p>
+    <p class="sm"><b>4. Mira "Hoy puedes gastar"</b> en Inicio: te dice cuánto te alcanza por día para llegar bien a fin de mes.</p>
+    <p class="sm"><b>5. Al final del mes</b>, haz la reflexión con las 4 preguntas y cierra el mes. Lo que te sobró lo puedes mandar a una meta.</p></div>
+  <div class="card"><h3>💳 Cuentas y tarjetas</h3><p class="sm">En <b>Más › Cuentas y tarjetas</b> agrega cada banco, billetera o el efectivo con su saldo de hoy. En las tarjetas de crédito pon el cupo, lo que debes y el día de pago. Al anotar un gasto toca con qué pagaste. Para pasar plata de una cuenta a otra o pagar la tarjeta usa <b>Mover plata</b>: no cuenta como gasto. Si un saldo no cuadra con el del banco, entra a la cuenta y toca <b>Corregir saldo</b>.</p></div>
+  <div class="card"><h3>👥 Espacio compartido</h3><p class="sm">Uno crea el espacio en <b>Más › Espacios compartidos</b> y escribe el Gmail del otro. El otro toca <b>Unirme a uno</b> y elige el archivo. Arriba en Inicio cambian entre 👤 Personal y 🏠 Casa. Anoten los <b>aportes</b> al fondo y los <b>gastos</b>, diciendo si salieron del fondo o del bolsillo de alguien. Los cambios le llegan al otro en máximo un minuto con la app abierta.</p></div>
+  <div class="card"><h3>Lo que tiene de más</h3><p class="sm">⚡ Registro emocional de cada gasto · 📅 Avisos de pagos fijos · ⏳ Lista de deseos con espera · 🎯 Metas con plan mensual · 📊 Resumen semanal, diario y comparación con el mes anterior · 💳 Cuentas y tarjetas con saldo y cupo · 👥 Espacios compartidos (ej: la casa) · ⭐ Atajos para repetir gastos frecuentes · 🔒 PIN · 💾 Respaldos y exportación a Excel.</p></div>
+  <div class="card"><h3>Privacidad</h3><p class="sm">Tus datos se guardan en tu celular. Si conectas Google Drive, la copia va a una carpeta oculta de <b>tu propio</b> Drive, sin pasar por ningún servidor. No hay anuncios ni cuentas nuevas. Cada persona usa la app en su celular con su propio Google, y los datos de una no se mezclan con los de la otra.</p></div>`;
+}
+
+/* ---------- MODAL: agregar / editar movimiento ---------- */
+function shortcuts(){
+  const map={};
+  S.tx.filter(isOut).slice(-200).forEach(t=>{ const k=[t.cat,t.sub||'',t.note||'',t.amount].join('|'); map[k]=map[k]||{t,n:0}; map[k].n++; map[k].t=t; });
+  return Object.values(map).filter(x=>x.n>=2).sort((a,b)=>b.n-a.n).slice(0,6).map(x=>x.t);
+}
+function openAdd(prefill){
+  ui.form=Object.assign({id:null,type:'out',amount:0,cat:'sup',sub:'',mood:'',note:'',date:todayStr(),acc:'',to:''}, prefill||{});
+  const f=ui.form;
+  if(!f.id && !(prefill&&prefill.date) && ui.month!==ymOf(todayStr())) f.date=ui.month+'-01';
+  if(!f.id && !f.acc && f.type!=='tr') f.acc=lastAcc();
+  if(!f.id && f.type==='tr' && !f.acc){ const a=activeAccs().find(x=>x.type!=='cre'&&x.id!==f.to); f.acc=a?a.id:''; }
+  openModal('tx');
+}
+function mTx(){
+  const f=ui.form, T=f.type||'out', out=T==='out', isIn=T==='in'||T==='rin', isTr=T==='tr', subs=S.settings.subs[f.cat]||[];
+  const sc=!f.id&&out?shortcuts():[], accs=activeAccs();
+  const chips=(field,label,list)=>list.length?`<label class="l">${label}</label><div class="chips">${list.map(a=>`<button class="chip ${f[field]===a.id?'on':''}" data-a="fAcc" data-k="${field}" data-v="${a.id}"><span class="bdot" style="background:${bankBy(a.bank).c}"></span>${esc(accLabel(a))}</button>`).join('')}</div>`:'';
+  const title=T==='fix'?'Pago de gasto fijo':T==='rin'?'Ingreso del plan':(f.id?'Editar':'Nuevo')+' movimiento';
+  let h=`<div class="between" style="margin-bottom:10px"><h2>${title}</h2><button class="ib" data-a="closeModal">✕</button></div>`;
+  if(['out','in','tr'].includes(T)) h+=`<div class="seg seg3" style="margin-bottom:12px"><button class="${out?'on':''}" data-a="fType" data-v="out">Gasto</button><button class="${T==='in'?'on':''}" data-a="fType" data-v="in">Ingreso</button><button class="${isTr?'on':''}" data-a="fType" data-v="tr">Mover plata</button></div>`;
+  if(sc.length) h+=`<label class="l">⭐ Atajos (toca para repetir)</label><div class="chips scroll">${sc.map(t=>`<button class="chip" data-a="useSc" data-id="${t.id}">${catById(t.cat).emoji} ${esc(t.note||t.sub)} · ${fmt(t.amount)}</button>`).join('')}</div>`;
+  h+=`<input class="f money" id="fAmt" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.amount)}" autocomplete="off" style="margin-top:10px">`;
+  if(isTr){
+    if(accs.length<2) h+=`<p class="sm mut" style="margin-top:10px">Agrega al menos dos cuentas en <b>Más › Cuentas y tarjetas</b> para mover plata entre ellas.</p>`;
+    h+=chips('acc','Sale de',accs)+chips('to','Llega a',accs.filter(a=>a.id!==f.acc));
+    const to=accById(f.to); if(to&&to.type==='cre') h+=`<p class="xs mut">💳 Pago de tarjeta: baja tu deuda y no cuenta como gasto (las compras ya se contaron).</p>`;
+  } else if(out){
+    h+=`<label class="l">Pilar</label><div class="cats4">${CATS.map(c=>`<button class="${f.cat===c.id?'on':''}" style="${f.cat===c.id?`border-color:${c.color};background:${c.color}22`:''}" data-a="fCat" data-v="${c.id}"><span>${c.emoji}</span>${c.name}</button>`).join('')}</div>
+      <label class="l">Subcategoría</label><div class="chips">${subs.map(s=>`<button class="chip ${f.sub===s?'on':''}" data-a="fSub" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+      ${chips('acc','¿Con qué pagaste?',accs)}
+      <label class="l">¿Cómo fue este gasto?</label><div class="chips">${MOODS.map(m=>`<button class="chip ${f.mood===m.id?'on':''}" data-a="fMood" data-v="${m.id}">${m.emoji} ${m.name}</button>`).join('')}</div>`;
+  } else h+=chips('acc',isIn?'¿A dónde llegó?':'¿Con qué pagaste?',isIn?accs.filter(a=>a.type!=='cre'):accs);
+  h+=`<label class="l">Nota</label><input class="f" id="fNote" placeholder="${isIn?'Ej: Mantenimiento de un portátil':isTr?'Ej: Pasé a Nequi':'Ej: Almuerzo en el centro'}" value="${esc(f.note)}" maxlength="80">
+    <label class="l">Fecha</label><input class="f" id="fDate" type="date" value="${f.date}">
+    <button class="btn full" data-a="saveTx" style="margin-top:16px">${f.id?'Guardar cambios':'Guardar'}</button>
+    ${f.id?`<button class="btn full ghost" data-a="delTx" style="margin-top:8px;color:var(--bad);border-color:var(--bad)">Eliminar</button>`:''}`;
+  return h;
+}
+function readForm(){ const f=ui.form; if(!f) return; const a=$('#fAmt'),n=$('#fNote'),d=$('#fDate'); if(a) f.amount=parseAmt(a.value); if(n) f.note=n.value; if(d&&d.value) f.date=d.value; }
+
+/* ---------- modales genéricos ---------- */
+let modalCb=null;
+function openModal(kind,data){
+  const wasOpen=!!ui.modal; ui.modal={kind,data};
+  if(!wasOpen) history.pushState({m:1},'');
+  renderModal();
+  if(kind==='tx' && !ui.form.id) setTimeout(()=>$('#fAmt')?.focus(),250);
+  if(kind==='spx' && !ui.sform.id) setTimeout(()=>$('#sAmt')?.focus(),250);
+  if(kind==='prompt') setTimeout(()=>$('#pIn')?.focus(),250);
+}
+function renderModal(){
+  if(!ui.modal){ $('#modal').innerHTML=''; return; }
+  const k=ui.modal.kind, d=ui.modal.data||{};
+  let body='';
+  if(k==='tx') body=mTx();
+  else if(k==='acc') body=mAcc();
+  else if(k==='tour'){ const i=d.i||0, st=TOUR[i], last=i===TOUR.length-1;
+    body=`<div style="text-align:center;padding:10px 4px 0"><div style="font-size:3.4rem">${st.e}</div><h2 style="margin:8px 0">${st.t}</h2><p class="sm" style="min-height:84px">${st.p}</p>
+      <div class="row" style="justify-content:center;gap:6px;margin:10px 0 16px">${TOUR.map((_,j)=>`<span style="width:${j===i?18:7}px;height:7px;border-radius:9px;background:${j===i?'var(--acc)':'var(--line)'}"></span>`).join('')}</div>
+      <div class="grid2">${last?`<button class="btn ghost" data-a="tourPrev">Atrás</button>`:`<button class="btn ghost" data-a="tourEnd">Saltar</button>`}<button class="btn" data-a="${last?'tourEnd':'tourNext'}">${last?'¡Empezar!':'Siguiente'}</button></div></div>`; }
+  else if(k==='spx') body=mSpx();
+  else if(k==='spnew') body=mSpNew();
+  else if(k==='spjoin') body=mSpJoin();
+  else if(k==='prompt') body=`<h2 style="margin-bottom:6px">${d.title}</h2>${d.text?`<p class="sm mut">${d.text}</p>`:''}
+    <input class="f ${d.money?'money':''}" id="pIn" ${d.money?'data-money inputmode="numeric" placeholder="$ 0"':''} ${d.select?'hidden':''} value="${esc(d.value||'')}">
+    ${d.select?`<select class="f" id="pSel">${d.select.map(o=>`<option value="${o.v}">${esc(o.l)}</option>`).join('')}</select>`:''}
+    <div class="grid2" style="margin-top:14px"><button class="btn ghost" data-a="closeModal">Cancelar</button><button class="btn ${d.danger?'bad':''}" data-a="promptOk">${d.ok||'Aceptar'}</button></div>`;
+  else if(k==='snaps') body=`<div class="between" style="margin-bottom:6px"><h2>Copias semanales</h2><button class="ib" data-a="closeModal">✕</button></div>
+    <p class="sm mut">Drive guarda una copia por semana (las 4 últimas). Úsalas si borraste algo por error.</p>
+    ${d.files.length?d.files.map(f=>{const n=f.name.replace('semanal-','').replace('.json','').split('-').reverse().join('/');return `<div class="li"><div class="grow"><b class="sm">Semana del ${n}</b><div class="xs mut">${f.size?Math.ceil(f.size/1024)+' KB':''}</div></div><button class="btn sm ghost" data-a="restoreSnap" data-id="${f.id}" data-n="${n}">Restaurar</button></div>`}).join(''):`<div class="empty"><i>🗂️</i>Aún no hay copias semanales.</div>`}`;
+  else if(k==='pin') body=`<h2 style="text-align:center">${d.step===2?'Confirma tu PIN':'Elige un PIN de 4 dígitos'}</h2>${pinPad(d.val||'')}<div style="text-align:center;margin-top:10px"><button class="link" data-a="closeModal">Cancelar</button></div>`;
+  $('#modal').innerHTML=`<div class="bg" data-a="bgClose"><div class="sheet"><div class="grab"></div>${body}</div></div>`;
+}
+function closeModal(fromPop){
+  ui.modal=null; ui.form=null; ui.aform=null; ui.sform=null; modalCb=null; renderModal();
+  if(pendingRender){ pendingRender=false; render(); }
+  if(!fromPop){ ignorePop++; history.back(); }
+}
+function ask(opts,cb){ modalCb=cb; openModal('prompt',opts); }
+
+/* ---------- PIN ---------- */
+function pinPad(val){
+  return `<div style="display:flex;flex-direction:column;align-items:center;gap:18px;margin-top:14px"><div class="pins" id="pins">${[0,1,2,3].map(i=>`<b class="${i<val.length?'on':''}"></b>`).join('')}</div>
+    <div class="pad">${[1,2,3,4,5,6,7,8,9,'',0,'⌫'].map(n=>n===''?'<span></span>':`<button data-a="pinKey" data-v="${n}">${n}</button>`).join('')}</div></div>`;
+}
+let locked=false, lockVal='', hiddenAt=0;
+function showLock(){
+  locked=true; lockVal='';
+  let el=$('#lock'); if(!el){ el=document.createElement('div'); el.id='lock'; el.className='lock'; document.body.appendChild(el); }
+  el.innerHTML=`<div style="font-size:2.6rem">🔒</div><b>Mi Kakeibo</b>${pinPad('')}`;
+}
+function lockKey(v){
+  if(v==='⌫') lockVal=lockVal.slice(0,-1); else if(lockVal.length<4) lockVal+=v;
+  const el=$('#lock'); el.querySelector('#pins').outerHTML=`<div class="pins" id="pins">${[0,1,2,3].map(i=>`<b class="${i<lockVal.length?'on':''}"></b>`).join('')}</div>`;
+  if(lockVal.length===4){
+    if(hash(lockVal)===S.settings.pin){ locked=false; el.remove(); }
+    else { const p=el.querySelector('#pins'); p.classList.add('shake'); lockVal=''; setTimeout(()=>{ if($('#lock')) $('#lock').querySelector('#pins').outerHTML=`<div class="pins" id="pins">${'<b></b>'.repeat(4)}</div>`; },380); }
+  }
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) hiddenAt=Date.now();
+  else if(S.settings.pin && !locked && Date.now()-hiddenAt>60000 && hiddenAt) showLock();
+});
+
+/* ---------- acciones ---------- */
+const A = {
+  go:d=>go(d.t), back:()=>back(),
+  month:d=>{ ui.month=addMonth(ui.month,+d.k); render(); },
+  monthNow:()=>{ ui.month=ymOf(todayStr()); render(); },
+  openMonth:d=>{ ui.month=d.m; ui.stack=[]; ui.tab='resumen'; render(); scrollTo(0,0); },
+  add:()=>ui.space?openSpAdd():openAdd(),
+  edit:d=>{ const t=S.tx.find(x=>x.id===d.id); if(t){ ui.form=Object.assign({},t); openModal('tx'); } },
+  catMovs:d=>{ ui.filter=d.c; go('movs'); },
+  filter:d=>{ ui.filter=d.f; render(); },
+  closeModal:()=>closeModal(),
+  bgClose:(d,el,e)=>{ if(e.target===el) closeModal(); },
+  fType:d=>{ readForm(); const f=ui.form; f.type=d.v; if(d.v==='tr'){ if(!f.acc||(accById(f.acc)||{}).type==='cre'){ const a=activeAccs().find(x=>x.type!=='cre'); f.acc=a?a.id:''; } } else if(d.v==='in' && (accById(f.acc)||{}).type==='cre') f.acc=''; renderModal(); },
+  fAcc:d=>{ readForm(); const f=ui.form; f[d.k]=f[d.k]===d.v?'':d.v; if(d.k==='acc'&&f.to===f.acc) f.to=''; renderModal(); },
+  fCat:d=>{ readForm(); if(ui.form.cat!==d.v){ ui.form.cat=d.v; ui.form.sub=''; } renderModal(); },
+  fSub:d=>{ readForm(); ui.form.sub=ui.form.sub===d.v?'':d.v; renderModal(); },
+  fMood:d=>{ readForm(); ui.form.mood=ui.form.mood===d.v?'':d.v; renderModal(); },
+  useSc:d=>{ const t=S.tx.find(x=>x.id===d.id); if(!t) return; readForm(); Object.assign(ui.form,{cat:t.cat,sub:t.sub,note:t.note,amount:t.amount,mood:t.mood||''}); renderModal(); },
+  saveTx:()=>{
+    readForm(); const f=ui.form;
+    if(!f.amount){ toast('Escribe el monto'); $('#fAmt')?.focus(); return; }
+    if(f.type==='tr' && (!f.acc||!f.to)){ toast('Elige de qué cuenta sale y a cuál llega'); return; }
+    const rec={id:f.id||uid(), type:f.type||'out', amount:f.amount, date:f.date||todayStr(), note:(f.note||'').trim(), ts:f.ts||Date.now(), acc:f.acc||''};
+    if(isOut(rec)){ rec.cat=f.cat; rec.sub=f.sub; rec.mood=f.mood; }
+    if(rec.type==='tr') rec.to=f.to;
+    ['fixedId','incId','spaceRef'].forEach(k=>{ if(f[k]) rec[k]=f[k]; });
+    if(isOut(rec) && rec.acc){ try{ localStorage.setItem('mikakeibo.lastAcc',rec.acc); }catch(e){} }
+    if(f.id){ const i=S.tx.findIndex(x=>x.id===f.id); if(i>=0) S.tx[i]=rec; } else S.tx.push(rec);
+    if(f.wishId){ const w=S.wishes.find(x=>x.id===f.wishId); if(w){ w.status='yes'; w.decided=todayStr(); } }
+    save(); const ym=ymOf(rec.date); closeModal();
+    if(ym!==ui.month) ui.month=ym;
+    render();
+    if(rec.type==='tr') toast('↔️ Movimiento guardado');
+    else if(isOut(rec)){ const st=stats(ym), b=Number(st.m.budgets[rec.cat])||0, g=st.byCat[rec.cat];
+      if(b && g>b) toast(`⚠️ Te pasaste del tope de ${catById(rec.cat).name}`);
+      else if(b && g>b*.85) toast(`👀 Vas en el ${Math.round(g/b*100)}% de ${catById(rec.cat).name}`);
+      else if(st.disp>0 && st.restante<0) toast('🔥 Ya gastaste más de lo disponible este mes');
+      else toast('✅ Guardado');
+    } else toast(rec.type==='fix'?'✅ Guardado':'💰 Ingreso guardado');
+  },
+  delTx:()=>{ const id=ui.form.id, t=S.tx.find(x=>x.id===id); if(!confirm('¿Eliminar este movimiento?')) return; S.tx=S.tx.filter(x=>x.id!==id);
+    if(t&&(t.fixedId||t.incId)) for(const k in S.months){ const m=S.months[k]; (m.fixed||[]).forEach(x=>{ if(x.id===t.fixedId) x.paid=false; }); (m.income||[]).forEach(x=>{ if(x.id===t.incId) x.got=false; }); }
+    save(); closeModal(); render(); toast('Eliminado'); },
+  copyPrev:()=>{
+    const pm=S.months[addMonth(ui.month,-1)]; if(!pm) return; const m=M(ui.month);
+    m.income=pm.income.map(x=>({...x,id:uid(),got:false})); m.fixed=pm.fixed.map(x=>({...x,id:uid(),paid:false}));
+    m.saving=pm.saving; m.budgets={...pm.budgets}; save(); go('mes'); toast('📋 Plan copiado. Revisa y ajusta.');
+  },
+  delInc:d=>{ const m=M(ui.month); m.income=m.income.filter(x=>x.id!==d.id); save(); render(); },
+  delFix:d=>{ const m=M(ui.month); m.fixed=m.fixed.filter(x=>x.id!==d.id); save(); render(); },
+  togPaid:d=>{ const f=M(ui.month).fixed.find(x=>x.id===d.id); if(f) setFixedPaid(f,!f.paid,ui.month); },
+  paid:d=>{ const f=M(ui.month).fixed.find(x=>x.id===d.id); if(f) setFixedPaid(f,true,ui.month); },
+  togInc:d=>{ const i=M(ui.month).income.find(x=>x.id===d.id); if(i) setIncReceived(i,!i.got,ui.month); },
+  // cuentas
+  newAcc:()=>openAccForm(null),
+  editAcc:d=>openAccForm(accById(d.id)),
+  openAcc:d=>{ ui.accId=d.id; go('cuenta'); },
+  aBank:d=>{ readAcc(); const f=ui.aform; f.bank=d.v; if(d.v==='efectivo') f.type='efe'; else if(f.type==='efe') f.type=['nequi','daviplata','movii','rappipay'].includes(d.v)?'bil':'deb'; else if(!f.id && ['nequi','daviplata','movii'].includes(d.v)) f.type='bil'; renderModal(); },
+  aType:d=>{ readAcc(); ui.aform.type=d.v; renderModal(); },
+  saveAcc:()=>{
+    readAcc(); const f=ui.aform; if(!f.bank){ toast('Elige el banco'); return; }
+    const old=f.id?accById(f.id):null, id=f.id||uid();
+    const rec={id, bank:f.bank, type:f.type, name:(f.name||'').trim()||autoName(f), last4:f.type==='efe'?'':(f.last4||''), limit:f.type==='cre'?f.limit:0, cutDay:f.type==='cre'?f.cutDay:'', payDay:f.type==='cre'?f.payDay:'', created:(old&&old.created)||todayStr()};
+    rec.start=startFor(rec.type,id,f.show||0);
+    if(old) Object.assign(old,rec); else S.accounts.push(rec);
+    save(); closeModal(); render(); toast(old?'✅ Cuenta actualizada':'💳 '+rec.name+' agregada');
+  },
+  adjAcc:d=>{ const a=accById(d.id); if(!a) return;
+    ask({title:a.type==='cre'?'¿Cuánto debes hoy en '+a.name+'?':'¿Cuánto tienes hoy en '+a.name+'?', text:'Mira el saldo en la app del banco y escríbelo. La diferencia se ajusta sin contarla como gasto.', money:true, value:fmtIn(Math.max(0,accBal(a))), ok:'Corregir'},
+      ()=>{ const v=parseAmt($('#pIn').value); a.start=startFor(a.type,a.id,v); save(); closeModal(); render(); toast('✅ Saldo corregido'); }); },
+  delAcc:d=>{ const a=accById(d.id); if(!a||!confirm('¿Eliminar '+a.name+'? Sus movimientos se conservan, pero quedan sin cuenta.')) return; S.accounts=S.accounts.filter(x=>x.id!==a.id); save(); back(); toast('Cuenta eliminada'); },
+  payCard:d=>{ const a=accById(d.id); if(!a) return; openAdd({type:'tr', to:a.id, amount:Math.max(0,accBal(a)), note:'Pago '+a.name}); },
+  move:d=>openAdd({type:'tr', acc:d.from||''}),
+  // espacios
+  space:d=>{ ui.space=d.id||null; if(ui.tab!=='inicio'&&ui.tab!=='movs'){ ui.stack=[]; ui.tab='inicio'; } render(); scrollTo(0,0); },
+  spAdd:d=>openSpAdd({kind:d.k}),
+  spEdit:d=>{ const x=Spaces.data(ui.space).items.find(i=>i.id===d.id); if(x){ ui.sform=Object.assign({mirror:false},JSON.parse(JSON.stringify(x))); openModal('spx'); } },
+  sfKind:d=>{ readSp(); ui.sform.kind=d.v; renderModal(); },
+  sfCat:d=>{ readSp(); ui.sform.cat=d.v; renderModal(); },
+  sfPaid:d=>{ readSp(); ui.sform.paidBy=d.v; renderModal(); },
+  sfWho:d=>{ readSp(); ui.sform.who=d.v; renderModal(); },
+  sfAcc:d=>{ readSp(); ui.sform.acc=ui.sform.acc===d.v?'':d.v; renderModal(); },
+  spSave:()=>{
+    readSp(); const f=ui.sform, sp=Spaces.get(ui.space), d=Spaces.data(sp.id);
+    if(!f.amount){ toast('Escribe el monto'); return; }
+    const rec={id:f.id||uid(), kind:f.kind, amount:f.amount, date:f.date||todayStr(), note:(f.note||'').trim(), by:f.by||myEmail(), ts:f.ts||Date.now()};
+    if(f.kind==='g'){ rec.cat=f.cat; rec.paidBy=f.paidBy; } else rec.who=f.who||myEmail();
+    const i=d.items.findIndex(x=>x.id===rec.id); if(i>=0) d.items[i]=Object.assign({},d.items[i],rec); else d.items.push(rec);
+    Spaces.save(sp.id);
+    if(!f.id && f.kind==='ap' && rec.who===myEmail() && f.mirror){
+      if(!S.settings.subs.sup.includes('Casa')) S.settings.subs.sup.push('Casa');
+      S.tx.push({id:uid(), type:'out', amount:rec.amount, cat:'sup', sub:'Casa', mood:'nec', note:'Aporte a '+d.meta.name, date:rec.date, acc:f.acc||'', spaceRef:rec.id, ts:Date.now()});
+      save();
+    }
+    closeModal(); render(); toast(f.kind==='g'?'🏠 Gasto de la casa guardado':'💰 Aporte guardado');
+  },
+  spDel:()=>{ const f=ui.sform, sp=Spaces.get(ui.space), d=Spaces.data(sp.id); if(!confirm('¿Eliminar este movimiento del espacio? También desaparece para la otra persona.')) return;
+    d.items=d.items.filter(x=>x.id!==f.id); Spaces.save(sp.id);
+    const before=S.tx.length; S.tx=S.tx.filter(t=>t.spaceRef!==f.id); if(S.tx.length!==before) save();
+    closeModal(); render(); toast('Eliminado'); },
+  spRepay:d=>{ const sp=Spaces.get(ui.space), dd=Spaces.data(sp.id), owed=spStats(dd,ui.month).byMember.find(m=>m.email===d.e);
+    ask({title:'Devolverle a '+spName(dd,d.e), text:'Sale del fondo común y baja lo que la casa le debe.', money:true, value:fmtIn(owed?owed.debe:0), ok:'Devolver'},
+      ()=>{ const v=parseAmt($('#pIn').value); if(!v) return; dd.items.push({id:uid(),kind:'re',to:d.e,amount:v,date:todayStr(),by:myEmail(),ts:Date.now()}); Spaces.save(sp.id); closeModal(); render(); toast('↩️ Devolución anotada'); }); },
+  spEmoji:d=>{ const dd=Spaces.data(ui.space); dd.meta.emoji=d.v; Spaces.save(ui.space); render(); },
+  spLeave:()=>{ if(!confirm('¿Quitar este espacio de tu celular? El archivo sigue en Drive y te puedes volver a unir.')) return; Spaces.remove(ui.space); ui.stack=[]; ui.tab='inicio'; render(); },
+  spNew:()=>{ if(!Sync.on()){ go('ajustes'); toast('Primero conecta tu Google Drive'); return; } openModal('spnew',{name:'Casa',emoji:'🏠'}); },
+  nEmoji:d=>{ const m=ui.modal.data; m.name=$('#nName').value; m.me=$('#nMe').value; m.mail=$('#nMail').value; m.emoji=d.v; renderModal(); },
+  spCreate:async()=>{
+    const m=ui.modal.data; m.name=$('#nName').value.trim()||'Casa'; m.me=$('#nMe').value.trim(); m.mail=$('#nMail').value.trim();
+    if(!navigator.onLine){ toast('Necesitas internet para crear el espacio'); return; }
+    if(!Sync.tokenOk()){ toast('Conectando con Google… vuelve a tocar Crear al regresar'); setTimeout(()=>Sync.login(!!Sync.st.email),900); return; }
+    if(m.me && m.me!==S.settings.myName){ S.settings.myName=m.me; save(); }
+    const me=myEmail(), d=spMigrate({meta:{name:m.name,emoji:m.emoji||'🏠',members:[{email:me,name:m.me||''}],split:{},created:todayStr()},items:[],del:{}});
+    try{
+      showOverlay('Creando el espacio en tu Drive');
+      const id=await Sync.create('Mi Kakeibo · '+m.name+'.json', JSON.stringify({app:'mi-kakeibo-espacio',v:1,saved:new Date().toISOString(),data:d}), null);
+      if(m.mail) await Sync.share(id,m.mail,m.name);
+      Spaces.add({id,fileId:id,name:m.name,emoji:d.meta.emoji,owner:true,lastSync:Date.now()},d);
+      $('#ovl')?.remove(); closeModal(); ui.space=id; ui.stack=[]; ui.tab='inicio'; render();
+      toast(m.mail?'✅ Espacio creado e invitación enviada':'✅ Espacio creado');
+    }catch(e){ $('#ovl')?.remove(); toast('⚠️ No se pudo crear: '+(e.message||'error')); }
+  },
+  spJoin:()=>{ if(!Sync.on()){ go('ajustes'); toast('Primero conecta tu Google Drive'); return; } openModal('spjoin'); },
+  spPick:()=>{
+    const nm=$('#jMe')?.value.trim(); if(nm && nm!==S.settings.myName){ S.settings.myName=nm; save(); }
+    Sync.pick(async id=>{
+      try{
+        showOverlay('Uniéndote al espacio');
+        if(Spaces.get(id)){ $('#ovl')?.remove(); closeModal(); ui.space=id; render(); return; }
+        const raw=await Sync.read(id), d=spMigrate(raw);
+        if(!raw || !raw.meta || !Array.isArray(raw.items)) throw new Error('Ese archivo no es un espacio de Mi Kakeibo');
+        const me=myEmail(); if(!d.meta.members.some(x=>x.email===me)) d.meta.members.push({email:me,name:S.settings.myName||''});
+        Spaces.add({id,fileId:id,name:d.meta.name,emoji:d.meta.emoji,owner:false},spMigrate(raw));
+        const dd=Spaces.data(id); if(!dd.meta.members.some(x=>x.email===me)) dd.meta.members.push({email:me,name:S.settings.myName||''}); Spaces.save(id);
+        $('#ovl')?.remove(); if(ui.modal) closeModal(); ui.space=id; ui.stack=[]; ui.tab='inicio'; render(); toast('🎉 Te uniste a '+d.meta.name);
+        Sync.run();
+      }catch(e){ $('#ovl')?.remove(); toast('⚠️ '+(e.message||'No se pudo abrir el archivo')); }
+    });
+  },
+  savPct:d=>{ const st=stats(ui.month); M(ui.month).saving=Math.round((st.ingFix-st.fijos)*d.p/100/1000)*1000; save(); render(); },
+  autoBud:()=>{ const st=stats(ui.month), m=M(ui.month), r={sup:.5,oci:.2,cul:.1,ext:.2}; for(const c of CATS) m.budgets[c.id]=Math.floor(st.disp*r[c.id]/1000)*1000; save(); render(); toast('✨ Reparto sugerido. Ajústalo a tu gusto.'); },
+  setupDone:()=>{ const m=M(ui.month); if(!m.income.length){ toast('Agrega al menos un ingreso'); return; } m.setup=true; save(); toast('✅ Plan guardado'); ui.stack=[]; ui.tab='inicio'; render(); scrollTo(0,0); },
+  closeMonth:()=>{
+    const st=stats(ui.month), extra=st.ahorroReal;
+    const fin=()=>{ M(ui.month).closed=true; save(); render(); toast('🔒 Mes cerrado'); };
+    if(extra>0 && S.goals.length){
+      ask({title:'¡Te sobraron '+fmt(extra)+'!', text:'¿A qué meta quieres mandarlos? (También puedes cancelar y dejarlos libres.)', select:S.goals.map(g=>({v:g.id,l:(g.emoji||'🎯')+' '+g.name})), ok:'Enviar a la meta'},
+        ()=>{ const g=S.goals.find(x=>x.id===$('#pSel').value); if(g){ g.saved+=extra; (g.log=g.log||[]).push({date:todayStr(),amount:extra,note:'Cierre '+monthName(ui.month)}); } closeModal(); fin(); });
+    } else if(confirm('¿Cerrar '+monthName(ui.month)+'?')) fin();
+  },
+  reopen:()=>{ M(ui.month).closed=false; save(); render(); },
+  goalMove:d=>{
+    const g=S.goals.find(x=>x.id===d.id), k=+d.k;
+    ask({title:(k>0?'Aportar a ':'Retirar de ')+g.name, money:true, ok:k>0?'Aportar':'Retirar'},()=>{
+      const v=parseAmt($('#pIn').value); if(!v) return;
+      g.saved=Math.max(0,g.saved+k*v); (g.log=g.log||[]).push({date:todayStr(),amount:k*v}); save(); closeModal(); render();
+      if(k>0 && g.saved>=g.target) toast('🎉 ¡Cumpliste la meta '+g.name+'!'); else toast(k>0?'🐷 Aporte guardado':'Retiro guardado');
+    });
+  },
+  delGoal:d=>{ if(!confirm('¿Eliminar esta meta?')) return; S.goals=S.goals.filter(x=>x.id!==d.id); save(); render(); },
+  wishBuy:d=>{ const w=S.wishes.find(x=>x.id===d.id); if(!w) return; openAdd({amount:w.price, note:w.name, cat:'oci', mood:'que', wishId:w.id}); },
+  wishNo:d=>{ const w=S.wishes.find(x=>x.id===d.id); if(!w) return; w.status='no'; w.decided=todayStr(); save(); render(); toast('💪 Te ahorraste '+fmt(w.price)); },
+  delWish:d=>{ S.wishes=S.wishes.filter(x=>x.id!==d.id); save(); render(); },
+  theme:d=>{ S.settings.theme=d.v; save(); render(); },
+  wishDays:d=>{ S.settings.wishDays=+d.v; save(); render(); },
+  delSub:d=>{ const arr=S.settings.subs[d.c]; if(arr.length<=1){ toast('Deja al menos una'); return; } arr.splice(+d.i,1); save(); render(); },
+  pinSet:()=>{ openModal('pin',{step:1,val:''}); },
+  pinOff:()=>{ if(!confirm('¿Quitar el PIN?')) return; S.settings.pin=null; save(); render(); toast('PIN quitado'); },
+  pinKey:d=>{
+    if(locked){ lockKey(d.v); return; }
+    const md=ui.modal.data; md.val=md.val||'';
+    if(d.v==='⌫') md.val=md.val.slice(0,-1); else if(md.val.length<4) md.val+=d.v;
+    if(md.val.length===4){
+      if(md.step===1){ md.first=md.val; md.step=2; md.val=''; }
+      else if(md.val===md.first){ S.settings.pin=hash(md.val); save(); closeModal(); render(); toast('🔒 PIN activado'); return; }
+      else { md.step=1; md.val=''; toast('No coinciden, intenta de nuevo'); }
+    }
+    renderModal();
+  },
+  promptOk:()=>{ const cb=modalCb; if(cb) cb(); },
+  backup:()=>doBackup(),
+  import:()=>$('#fileIn').click(),
+  csv:()=>doCsv(),
+  wipe:()=>{
+    ask({title:'¿Borrar todo?', text:'Se eliminan todos tus meses, movimientos, metas y deseos de este celular y se desconecta Drive (la copia en Drive no se borra). Escribe BORRAR para confirmar.', ok:'Borrar todo', danger:true},()=>{
+      if($('#pIn').value.trim().toUpperCase()!=='BORRAR'){ toast('Escribe BORRAR para confirmar'); return; }
+      S=defState(); prevMap=buildMap(S); persist(); if(Sync.on()) Sync.disconnect(); closeModal(); ui.stack=[]; ui.tab='inicio'; render(); toast('Datos borrados de este celular');
+    });
+  },
+  cloud:()=>go('ajustes'),
+  driveOn:()=>Sync.login(false),
+  driveSync:()=>Sync.run(true),
+  driveSnaps:()=>Sync.snaps(),
+  driveOff:()=>{ if(!confirm('¿Desconectar Google Drive? Tu copia en Drive no se borra; podrás volver a conectarla.')) return; Sync.disconnect(); render(); toast('Drive desconectado'); },
+  restoreSnap:d=>{ if(!confirm('¿Reemplazar tus datos actuales por la copia del '+d.n+'? Lo que anotaste después se perderá.')) return; Sync.restoreSnap(d.id); },
+  tourNext:()=>{ ui.modal.data.i=(ui.modal.data.i||0)+1; renderModal(); },
+  tourPrev:()=>{ ui.modal.data.i=Math.max(0,(ui.modal.data.i||0)-1); renderModal(); },
+  tourEnd:()=>{ try{ localStorage.setItem('mikakeibo.tour','1'); }catch(e){} closeModal(); },
+  tour:()=>openModal('tour',{i:0}),
+  install:async()=>{ if(!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall=null; render(); }
+};
+document.addEventListener('click',e=>{
+  if(locked){ const b=e.target.closest('[data-a="pinKey"]'); if(b) lockKey(b.dataset.v); return; }
+  const el=e.target.closest('[data-a]'); if(!el) return;
+  const fn=A[el.dataset.a]; if(fn){ if(el.tagName==='BUTTON') e.preventDefault(); fn(el.dataset,el,e); }
+});
+// formularios
+const F = {
+  addInc:fd=>{ const a=parseAmt(fd.get('amount')); if(!a) return; M(ui.month).income.push({id:uid(),name:fd.get('name').trim(),amount:a}); },
+  addFix:fd=>{ const a=parseAmt(fd.get('amount')); if(!a) return; const day=Math.min(31,Math.max(0,parseInt(fd.get('day'))||0)); M(ui.month).fixed.push({id:uid(),name:fd.get('name').trim(),amount:a,cat:fd.get('cat'),day:day||null,paid:false}); },
+  addGoal:fd=>{ const t=parseAmt(fd.get('target')); if(!t) return; S.goals.push({id:uid(),name:fd.get('name').trim(),emoji:fd.get('emoji')||'🎯',target:t,saved:0,date:fd.get('date')||null,log:[]}); toast('🎯 Meta creada'); },
+  addWish:fd=>{ const p=parseAmt(fd.get('price')); if(!p) return; S.wishes.push({id:uid(),name:fd.get('name').trim(),price:p,created:todayStr(),days:S.settings.wishDays,status:'wait'}); toast('⏳ Anotado. A esperar…'); },
+  spInvite:async fd=>{ const mail=String(fd.get('email')||'').trim(); const sp=Spaces.get(ui.space); if(!mail||!sp) return;
+    if(!Sync.tokenOk()){ Sync.login(!!Sync.st.email); return; }
+    try{ await Sync.share(sp.fileId,mail,sp.name); toast('✉️ Invitación enviada a '+mail); }catch(e){ toast('⚠️ No se pudo invitar: '+(e.message||'')); } },
+  addSub:(fd,form)=>{ const v=fd.get('sub').trim(); const arr=S.settings.subs[form.dataset.c]; if(v && !arr.includes(v)) arr.push(v); }
+};
+document.addEventListener('submit',e=>{
+  const form=e.target.closest('[data-form]'); if(!form) return; e.preventDefault();
+  const fn=F[form.dataset.form]; if(fn){ const r=fn(new FormData(form),form); if(r&&r.then) r.then(()=>render()); else { save(); render(); } }
+});
+// formato de dinero en vivo + cambios
+document.addEventListener('input',e=>{
+  const el=e.target;
+  if(el.matches('[data-money]')){ const v=parseAmt(el.value); el.value=v?fmtIn(v):''; }
+  if(el.id==='q'){ ui.q=el.value; fillTx(); }
+  if(el.matches('[data-ch="refl"]')){ M(ui.month).refl[el.dataset.k]=el.value; save(); }
+  if(el.matches('[data-ch="saving"],[data-ch="bud"]')) liveMes(el);
+  if(el.id==='fNote' && ui.form) ui.form.note=el.value;
+  if(el.id==='fAmt' && ui.form) ui.form.amount=parseAmt(el.value);
+});
+function liveMes(el){
+  const m=M(ui.month);
+  if(el.dataset.ch==='saving') m.saving=parseAmt(el.value); else m.budgets[el.dataset.c]=parseAmt(el.value);
+  save();
+  const st=stats(ui.month), asign=CATS.reduce((a,c)=>a+(Number(m.budgets[c.id])||0),0);
+  const d=$('#dispTot'); if(d) d.textContent=fmt(st.disp);
+  const s=$('#sinRep'); if(s){ s.textContent=fmt(st.disp-asign); s.className=st.disp-asign<0?'neg':''; }
+}
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(el.matches('[data-ch="autoDrive"]')){ S.settings.autoDrive=el.checked; save(); }
+  if(el.matches('[data-ch="sfMirror"]')&&ui.sform){ readSp(); ui.sform.mirror=el.checked; renderModal(); }
+  if(el.matches('[data-ch="spName"]')&&ui.space){ const d=Spaces.data(ui.space); d.meta.name=el.value.trim()||d.meta.name; Spaces.save(ui.space); }
+  if(el.matches('[data-ch="spSplit"]')&&ui.space){ const d=Spaces.data(ui.space); d.meta.split[el.dataset.e]=Math.max(0,Math.min(100,parseInt(el.value)||0)); Spaces.save(ui.space); render(); }
+  if(el.matches('[data-ch="myName"]')){ S.settings.myName=el.value.trim(); save(); for(const s of Spaces.list()){ const d=Spaces.data(s.id), m=d.meta.members.find(x=>x.email===myEmail()); if(m&&m.name!==S.settings.myName){ m.name=S.settings.myName; Spaces.save(s.id); } } }
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Enter' && ui.modal?.kind==='prompt'){ e.preventDefault(); A.promptOk(); } });
+
+/* ---------- respaldo ---------- */
+function fileName(ext){ return 'mi-kakeibo-'+todayStr()+'.'+ext; }
+async function shareOrDownload(blob,name){
+  try{
+    const file=new File([blob],name,{type:blob.type});
+    if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file],title:name}); return true; }
+  }catch(e){ if(e.name==='AbortError') return false; }
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },1000); return true;
+}
+async function doBackup(){
+  const data=JSON.stringify({app:'mi-kakeibo',exported:new Date().toISOString(),data:S},null,1);
+  const ok=await shareOrDownload(new Blob([data],{type:'application/json'}),fileName('json'));
+  if(ok){ S.settings.lastBackup=todayStr(); save(); render(); toast('💾 Respaldo creado'); }
+}
+function doCsv(){
+  const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
+  const rows=[['Fecha','Tipo','Pilar','Subcategoría','Monto','Nota','Cómo fue','Cuenta'].join(';')];
+  [...S.tx].sort((a,b)=>a.date<b.date?-1:1).forEach(t=>rows.push([t.date,({in:'Ingreso extra',rin:'Ingreso del plan',tr:'Movimiento entre cuentas',fix:'Gasto fijo'})[t.type]||'Gasto',isOut(t)?catById(t.cat).name:'',t.sub||'',t.amount,t.note||'',moodById(t.mood)?.name||'',accLabel(accById(t.acc))].map(q).join(';')));
+  shareOrDownload(new Blob(['﻿'+rows.join('\r\n')],{type:'text/csv'}),fileName('csv'));
+}
+$('#fileIn').addEventListener('change',async e=>{
+  const file=e.target.files[0]; e.target.value=''; if(!file) return;
+  try{
+    const j=JSON.parse(await file.text()); const d=j.data||j;
+    if(!d || !Array.isArray(d.tx) || typeof d.months!=='object') throw new Error('formato');
+    if(!confirm(`Este respaldo tiene ${d.tx.length} movimientos. ¿Unirlo con tus datos actuales? No se borra nada.`)) return;
+    S=mergeData(S, migrate(d)); prevMap=buildMap(S); persist(); Sync.changed(); ui.stack=[]; ui.tab='inicio'; render(); toast('✅ Respaldo unido');
+  }catch(err){ toast('❌ Ese archivo no es un respaldo de Mi Kakeibo'); }
+});
+
+/* =========================================================
+   RESPALDO EN GOOGLE DRIVE (como los backups de WhatsApp)
+   - Los datos SIEMPRE se guardan primero en el celular (funciona sin internet).
+   - Si conectas tu Drive, se guarda una copia en una carpeta oculta de la app
+     dentro de TU Drive. Nadie más la ve; no pasa por ningún servidor.
+   - Si hay varios dispositivos con la misma cuenta, los datos se mezclan
+     registro por registro (gana el cambio más reciente).
+   ========================================================= */
+const CLIENT_ID = (window.KAKEIBO_CONFIG && window.KAKEIBO_CONFIG.googleClientId || '').trim();
+const SCOPES = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file email';
+const MAIN_FILE = 'mi-kakeibo.json';
+const SYNC_KEY = 'mikakeibo.sync';
+const AUTO_EVERY = 6*3600*1000; // al abrir, respalda si pasaron 6 h
+
+function mergeData(L,R){
+  const del=Object.assign({}, R.del||{});
+  for(const k in (L.del||{})) del[k]=Math.max(del[k]||0, L.del[k]);
+  const pick=(a,b)=>!a?b:!b?a:((b.u||0)>(a.u||0)?b:a);
+  const col=(name,pre)=>{
+    const m=new Map();
+    (L[name]||[]).forEach(o=>m.set(o.id,o));
+    (R[name]||[]).forEach(o=>m.set(o.id,pick(m.get(o.id),o)));
+    return [...m.values()].filter(o=>!(del[pre+o.id]>=(o.u||0)));
+  };
+  const months={};
+  new Set([...Object.keys(L.months||{}),...Object.keys(R.months||{})]).forEach(k=>{
+    const o=pick((L.months||{})[k],(R.months||{})[k]);
+    if(!(del['m:'+k]>=(o.u||0))) months[k]=o;
+  });
+  const st=pick(L.settings,R.settings)||{};
+  const out={v:1, created:[L.created,R.created].filter(Boolean).sort()[0]||todayStr(),
+    settings:Object.assign({}, st, {pin:(L.settings||{}).pin||null, lastBackup:(L.settings||{}).lastBackup||null}),
+    months, tx:col('tx','t:'), goals:col('goals','g:'), wishes:col('wishes','w:'), accounts:col('accounts','a:'), del};
+  return migrate(JSON.parse(JSON.stringify(out)));
+}
+function redirectUri(){ return location.origin+location.pathname.replace(/index\.html$/,''); }
+function mondayOf(ds){ const d=parseD(ds); d.setDate(d.getDate()-((d.getDay()+6)%7)); return dstr(d); }
+function showOverlay(msg){
+  let el=$('#ovl'); if(!el){ el=document.createElement('div'); el.id='ovl'; el.className='lock'; document.body.appendChild(el); }
+  el.innerHTML=`<div style="font-size:2.6rem">☁️</div><b>${esc(msg)}</b><div class="mut sm">Un momento…</div>`;
+}
+
+const Sync = {
+  st:(()=>{ try{ return JSON.parse(localStorage.getItem(SYNC_KEY))||{}; }catch(e){ return {}; } })(),
+  busy:false, timer:null, err:'',
+  save(){ try{ localStorage.setItem(SYNC_KEY, JSON.stringify(this.st)); }catch(e){} },
+  available(){ return !!CLIENT_ID; },
+  on(){ return !!this.st.connected; },
+  tokenOk(){ return !!this.st.token && Date.now() < (this.st.exp||0)-60000; },
+  status(){
+    if(!this.on()) return 'off';
+    if(this.busy) return 'busy';
+    if(this.st.needsLogin) return 'login';
+    const dirty=this.st.dirty||Spaces.list().some(s=>s.dirty);
+    if(!navigator.onLine) return dirty?'offline':'ok';
+    if(this.err) return 'error';
+    return dirty?'pending':'ok';
+  },
+  changed(){
+    if(!this.on()) return;
+    this.st.dirty=true; this.save(); updateCloud();
+    clearTimeout(this.timer); this.timer=setTimeout(()=>this.auto(),4000);
+  },
+  auto(){ if(this.on() && navigator.onLine && this.tokenOk()) this.run(); },
+
+  // --- inicio de sesión (redirección: funciona en Android y en iPhone instalado) ---
+  login(silent){
+    if(!this.available()){ toast('Falta configurar el ID de Google en config.js'); return; }
+    if(!navigator.onLine){ toast('Necesitas internet para conectar con Drive'); return; }
+    const state=uid(); this.st.state=state; if(silent) this.st.lastSilent=Date.now(); this.save();
+    const p=new URLSearchParams({client_id:CLIENT_ID, redirect_uri:redirectUri(), response_type:'token', scope:SCOPES, include_granted_scopes:'true', state});
+    if(silent) p.set('prompt','none');
+    if(this.st.email) p.set('login_hint',this.st.email);
+    showOverlay(silent?'Respaldando en Google Drive':'Abriendo Google');
+    location.href='https://accounts.google.com/o/oauth2/v2/auth?'+p.toString();
+  },
+  handleRedirect(){
+    if(!/[#&]state=/.test(location.hash)) return null;
+    const h=new URLSearchParams(location.hash.slice(1));
+    history.replaceState(null,'',location.pathname+location.search);
+    if(!this.st.state || h.get('state')!==this.st.state) return null;
+    this.st.state=null;
+    if(h.get('access_token')){
+      this.st.token=h.get('access_token');
+      this.st.exp=Date.now()+(Number(h.get('expires_in'))||3600)*1000;
+      const first=!this.st.connected;
+      this.st.connected=true; this.st.needsLogin=false; this.err=''; this.save();
+      return first?'first':'ok';
+    }
+    const e=h.get('error');
+    if(['interaction_required','login_required','consent_required','account_selection_required'].includes(e)) this.st.needsLogin=true;
+    else if(e==='access_denied' && !this.st.connected) setTimeout(()=>toast('Cancelaste la conexión con Drive'),300);
+    this.save(); return 'error';
+  },
+  disconnect(){
+    const t=this.st.token;
+    if(t && navigator.onLine) fetch('https://oauth2.googleapis.com/revoke?token='+encodeURIComponent(t),{method:'POST'}).catch(()=>{});
+    this.st={}; this.save(); this.err=''; updateCloud();
+  },
+
+  // --- API de Drive ---
+  async api(url,opt={}){
+    const r=await fetch(url,Object.assign({},opt,{headers:Object.assign({Authorization:'Bearer '+this.st.token},opt.headers||{})}));
+    if(!r.ok){ const e=new Error('Drive respondió '+r.status); e.status=r.status; throw e; }
+    return r;
+  },
+  async list(q){
+    const r=await this.api('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&pageSize=100&fields=files(id,name,modifiedTime,size)&q='+encodeURIComponent(q));
+    return (await r.json()).files||[];
+  },
+  async read(id){ const r=await this.api('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media'); const j=await r.json(); return j.data||j; },
+  async create(name,body,parents=['appDataFolder']){
+    const b='mk'+uid(), meta=JSON.stringify(parents?{name,parents}:{name,mimeType:'application/json'});
+    const payload=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;
+    const r=await this.api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:payload});
+    return (await r.json()).id;
+  },
+  async update(id,body){ await this.api('https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body}); },
+  async share(id,email,name){
+    await this.api('https://www.googleapis.com/drive/v3/files/'+id+'/permissions?sendNotificationEmail=true&emailMessage='+encodeURIComponent('Te invito a nuestro espacio "'+name+'" en Mi Kakeibo. Abre la app, ve a Más › Espacios compartidos › Unirme a uno.'),
+      {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'writer',type:'user',emailAddress:email})});
+  },
+  async syncSpace(sp){
+    try{
+      const remote=await this.read(sp.fileId), L=Spaces.data(sp.id), before=JSON.stringify(L);
+      const M2=spMerge(L,remote); Spaces.setData(sp.id,M2);
+      await this.update(sp.fileId, JSON.stringify({app:'mi-kakeibo-espacio',v:1,saved:new Date().toISOString(),data:M2}));
+      sp.dirty=false; sp.lastSync=Date.now(); sp.err=''; Spaces.saveList();
+      return JSON.stringify(M2)!==before;
+    }catch(e){
+      if(e.status===401) throw e;
+      sp.err=(e.status===404||e.status===403)?'Ya no tienes acceso a este espacio. Pide que te vuelvan a invitar.':(e.message||'Error'); Spaces.saveList(); return false;
+    }
+  },
+  pick(cb){
+    const cfg=window.KAKEIBO_CONFIG||{};
+    if(!cfg.googleApiKey||!cfg.googleAppId){ toast('Falta poner googleApiKey y googleAppId en config.js'); return; }
+    if(!navigator.onLine){ toast('Necesitas internet'); return; }
+    if(!this.tokenOk()){ toast('Conectando con Google… vuelve a tocar el botón al regresar'); setTimeout(()=>this.login(!!this.st.email),900); return; }
+    const open=()=>{
+      const view=new google.picker.DocsView(google.picker.ViewId.DOCS).setMimeTypes('application/json').setQuery('Mi Kakeibo');
+      new google.picker.PickerBuilder().addView(view).setOAuthToken(this.st.token).setDeveloperKey(cfg.googleApiKey).setAppId(String(cfg.googleAppId))
+        .setLocale('es').setTitle('Elige el espacio que te compartieron')
+        .setCallback(data=>{ if(data.action===google.picker.Action.PICKED && data.docs && data.docs[0]) cb(data.docs[0].id); })
+        .build().setVisible(true);
+    };
+    if(window.google && google.picker) return open();
+    const sc=document.createElement('script'); sc.src='https://apis.google.com/js/api.js';
+    sc.onload=()=>gapi.load('picker',open); sc.onerror=()=>toast('No se pudo cargar Google Drive'); document.head.appendChild(sc);
+  },
+  async remove(id){ await this.api('https://www.googleapis.com/drive/v3/files/'+id,{method:'DELETE'}); },
+  async whoami(){ try{ const r=await this.api('https://www.googleapis.com/oauth2/v3/userinfo'); const j=await r.json(); if(j.email){ this.st.email=j.email; this.save(); } }catch(e){} },
+  body(data){ return JSON.stringify({app:'mi-kakeibo', v:1, saved:new Date().toISOString(), data}); },
+
+  // --- sincronizar: bajar, mezclar, subir ---
+  async run(manual){
+    if(this.busy) return;
+    if(!navigator.onLine){ if(manual) toast('📴 Sin internet. Se respalda solo cuando vuelva la conexión.'); updateCloud(); return; }
+    if(!this.tokenOk()){ if(manual) this.login(!this.st.needsLogin && !!this.st.email); return; }
+    this.busy=true; updateCloud();
+    try{
+      if(!this.st.email) await this.whoami();
+      const files=(await this.list(`name='${MAIN_FILE}'`)).sort((a,b)=>a.modifiedTime<b.modifiedTime?1:-1);
+      const before=JSON.stringify(S);
+      let merged=S;
+      for(const f of files) merged=mergeData(merged, await this.read(f.id));
+      const fromRemote=JSON.stringify(merged)!==before;
+      S=merged; prevMap=buildMap(S); persist();
+      const body=this.body(S);
+      if(files.length){ await this.update(files[0].id, body); for(const f of files.slice(1)) await this.remove(f.id); }
+      else await this.create(MAIN_FILE, body);
+      await this.weekly(body);
+      let spCh=false;
+      for(const sp of Spaces.list()) spCh=(await this.syncSpace(sp))||spCh;
+      this.st.dirty=false; this.st.lastSync=Date.now(); this.err='';
+      S.settings.lastBackup=todayStr(); persist();
+      if(fromRemote||spCh) softRender();
+      if(manual) toast('☁️ Respaldado en tu Google Drive');
+    }catch(e){
+      console.error(e);
+      if(e.status===401||e.status===403){ this.st.token=null; this.err=''; if(manual) this.login(!!this.st.email); }
+      else { this.err=e.message||'Error'; if(manual) toast('⚠️ No se pudo respaldar: '+this.err); }
+    }finally{ this.busy=false; this.save(); updateCloud(); }
+  },
+  async weekly(body){ // una copia por semana, se guardan las 4 últimas
+    const wk=mondayOf(todayStr()); if(this.st.lastWeek===wk) return;
+    const all=(await this.list("name contains 'semanal-'")).sort((a,b)=>a.name<b.name?1:-1);
+    if(!all.some(f=>f.name==='semanal-'+wk+'.json')){ await this.create('semanal-'+wk+'.json', body); all.unshift({name:'semanal-'+wk+'.json'}); }
+    for(const f of all.slice(4)) if(f.id) await this.remove(f.id);
+    this.st.lastWeek=wk;
+  },
+  async snaps(){
+    if(!navigator.onLine){ toast('Necesitas internet'); return; }
+    if(!this.tokenOk()){ this.login(!!this.st.email); return; }
+    try{
+      const files=(await this.list("name contains 'semanal-'")).sort((a,b)=>a.name<b.name?1:-1);
+      openModal('snaps',{files});
+    }catch(e){ toast('⚠️ No se pudo leer Drive'); }
+  },
+  async restoreSnap(id){
+    try{
+      const d=await this.read(id); if(!d || !Array.isArray(d.tx)) throw new Error('formato');
+      const pin=S.settings.pin, now=Date.now();
+      S=migrate(d); S.settings.pin=pin; S.del={};
+      for(const [,o] of recordsOf(S)) o.u=now; // esta copia pasa a ser la más reciente
+      prevMap=buildMap(S); persist();
+      const files=await this.list(`name='${MAIN_FILE}'`);
+      if(files.length) await this.update(files[0].id, this.body(S)); else await this.create(MAIN_FILE, this.body(S));
+      this.st.dirty=false; this.st.lastSync=Date.now(); this.save();
+      closeModal(); ui.stack=[]; ui.tab='inicio'; render(); toast('✅ Copia restaurada');
+    }catch(e){ toast('⚠️ No se pudo restaurar'); }
+  },
+
+  // --- al abrir la app ---
+  boot(){
+    const r=this.handleRedirect();
+    if(r==='first'){ setTimeout(()=>toast('☁️ Drive conectado. Respaldando…'),200); }
+    if(!this.on()) return false;
+    if(this.tokenOk()){ setTimeout(()=>this.run(r==='first'),300); return false; }
+    // sin token vigente: redirección rápida y silenciosa a Google si hace falta respaldar
+    const need=this.st.dirty || Spaces.list().some(s=>s.dirty) || !this.st.lastSync || Date.now()-this.st.lastSync>AUTO_EVERY;
+    const tooSoon=Date.now()-(this.st.lastSilent||0) < 10*60000;
+    if(need && navigator.onLine && !this.st.needsLogin && !tooSoon && this.st.email && S.settings.autoDrive!==false && r===null){ this.login(true); return true; }
+    return false;
+  }
+};
+addEventListener('online',()=>{ updateCloud(); Sync.auto(); });
+// Mientras la app está abierta y hay espacios compartidos, trae los cambios de la otra persona cada minuto
+setInterval(()=>{ if(Spaces.list().length && document.visibilityState==='visible') Sync.auto(); },60000);
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && Spaces.list().length) Sync.auto(); });
+addEventListener('offline',()=>updateCloud());
+
+let pendingRender=false;
+function softRender(){
+  const a=document.activeElement;
+  if(ui.modal || (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))){ pendingRender=true; return; }
+  render();
+}
+document.addEventListener('focusout',()=>{ if(pendingRender) setTimeout(()=>{ if(pendingRender && !ui.modal){ const a=document.activeElement; if(!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))){ pendingRender=false; render(); } } },150); });
+
+const CLOUD = {
+  off:['☁️','Sin respaldo en Drive'], ok:['✅','Respaldado'], busy:['🔄','Respaldando…'], pending:['⏳','Cambios por respaldar'],
+  offline:['📴','Sin internet: se respalda al volver'], login:['⚠️','Toca para volver a conectar Drive'], error:['⚠️','Hubo un error al respaldar']
+};
+function cloudIcon(){ const s=Sync.status(); return s==='off'?'☁️':CLOUD[s][0]; }
+function updateCloud(){
+  const b=$('#cloudBtn'); if(b) b.textContent=cloudIcon();
+  const t=$('#syncState'); if(t) t.innerHTML=syncStateHtml();
+}
+function ago(ms){
+  if(!ms) return 'nunca';
+  const m=Math.round((Date.now()-ms)/60000);
+  if(m<1) return 'hace un momento'; if(m<60) return 'hace '+m+' min';
+  const h=Math.round(m/60); if(h<24) return 'hace '+h+' h';
+  const d=Math.round(h/24); return 'hace '+d+' día'+(d>1?'s':'');
+}
+function syncStateHtml(){
+  const s=Sync.status();
+  return `<b>${CLOUD[s][0]} ${CLOUD[s][1]}</b><div class="xs mut">Último respaldo en Drive: ${ago(Sync.st.lastSync)}</div>`;
+}
+function vDrive(){
+  if(!Sync.available()) return `<div class="card"><h3>☁️ Respaldo en Google Drive</h3><p class="sm">Para activarlo hay que poner el ID de Google en el archivo <b>config.js</b> (paso 3 de la guía). Mientras tanto, usa los respaldos manuales de abajo.</p></div>`;
+  if(!Sync.on()) return `<div class="card hi"><h3>☁️ Respaldo en Google Drive</h3>
+    <p class="sm">Como WhatsApp: se guarda una copia en una carpeta oculta de <b>tu</b> Google Drive. Si cambias de celular o se borran los datos, inicias sesión y lo recuperas todo.</p>
+    <p class="xs mut">La app sigue funcionando sin internet y respalda cuando hay conexión. Solo puede ver su propia carpeta: no ve tus fotos ni tus otros archivos.</p>
+    <button class="btn full" data-a="driveOn" style="margin-top:8px">Conectar mi Google Drive</button></div>`;
+  return `<div class="card"><h3>☁️ Respaldo en Google Drive</h3>
+    <p class="sm">Cuenta: <b>${esc(Sync.st.email||'conectada')}</b></p>
+    <div id="syncState" style="margin:8px 0">${syncStateHtml()}</div>
+    <div class="row"><button class="btn sm" data-a="driveSync">Respaldar ahora</button><button class="btn sm ghost" data-a="driveSnaps">Copias semanales</button></div>
+    <label class="sm" style="margin-top:12px;display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" data-ch="autoDrive" ${S.settings.autoDrive!==false?'checked':''} style="width:20px;height:20px;accent-color:var(--acc)">
+      Respaldar automáticamente al abrir la app <span class="xs mut">(pasa un segundo por Google)</span></label>
+    <button class="link sm" data-a="driveOff" style="margin-top:8px;color:var(--bad)">Desconectar Drive</button></div>`;
+}
+
+/* ---------- arranque ---------- */
+const redirecting = Sync.boot();
+if(!redirecting){
+  history.replaceState({k:'root'},'');
+  render();
+  if(S.settings.pin) showLock();
+  let seen=false; try{ seen=!!localStorage.getItem('mikakeibo.tour'); }catch(e){}
+  if(!seen && !S.tx.length && !S.accounts.length){ const t0=()=>{ if(locked) return setTimeout(t0,400); openModal('tour',{i:0}); }; setTimeout(t0,400); }
+  if(/[?&]nuevo/.test(location.search)){ history.replaceState(history.state,'',location.pathname); const go2=()=>{ if(locked) return setTimeout(go2,400); openAdd(); }; setTimeout(go2,300); }
+}
+// Si cambia el día con la app abierta, refresca
+let lastDay=todayStr(); setInterval(()=>{ if(todayStr()!==lastDay){ lastDay=todayStr(); if(!ui.modal) render(); } },60000);
+if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+navigator.storage?.persist?.().catch(()=>{});
+</script>
+</body>
+</html>
