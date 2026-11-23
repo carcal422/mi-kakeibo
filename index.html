@@ -143,10 +143,10 @@ svg text{fill:var(--mut);font-size:9px}
    Todo se guarda solo en este dispositivo (localStorage).
    ========================================================= */
 const KEY = 'mikakeibo.v1';
-const APP_VERSION = '6.0.0';
+const APP_VERSION = '7.0.0';
 const TOUR=[
   {e:'👋',t:'Bienvenido a Mi Kakeibo',p:'Es el método japonés para controlar la plata: anotar cada gasto, darte cuenta en qué se va y decidir mejor. Sin anuncios y funciona sin internet.'},
-  {e:'🗓️',t:'1. Planea el mes',p:'Al empezar cada mes escribe lo que te entra, tus gastos fijos (arriendo, servicios…) y cuánto quieres ahorrar. Lo que sobra es lo que puedes gastar.'},
+  {e:'🗓️',t:'1. Planea',p:'Escribe tus gastos fijos (arriendo, servicios…) y cuánto quieres ahorrar. ¿Te pagan cada 15 días? Activa <b>Quincenal</b> en Más › Ajustes y anota cada pago apenas llegue.'},
   {e:'➕',t:'2. Anota cada gasto',p:'Toca el botón verde <b>+</b>, escribe el monto y elige uno de los 4 pilares: 🏠 Supervivencia, 🎉 Ocio, 📚 Cultura o ⚡ Extras. Marca si lo necesitabas, lo querías o fue un impulso.'},
   {e:'💳',t:'3. Tus cuentas y tarjetas',p:'Agrega Nequi, tu banco, tu tarjeta de crédito y el efectivo. Al anotar un gasto eliges con qué pagaste y el saldo se descuenta solo. Pasar plata entre cuentas no cuenta como gasto.'},
   {e:'😌',t:'4. Mira cuánto puedes gastar hoy',p:'En Inicio verás <b>"Hoy puedes gastar"</b> y si vas bien con el ritmo del mes. Al final del mes, haz la reflexión con las 4 preguntas.'},
@@ -210,7 +210,7 @@ function hash(s){ // candado básico (no es cifrado)
 /* ---------- estado ---------- */
 function defState(){
   return {v:1, created:todayStr(),
-    settings:{theme:'auto', pin:null, wishDays:30, autoDrive:true, subs:JSON.parse(JSON.stringify(DEFAULT_SUBS)), lastBackup:null},
+    settings:{theme:'auto', pin:null, wishDays:30, autoDrive:true, payMode:'m', payBase:0, saveMode:'pct', saveVal:10, subs:JSON.parse(JSON.stringify(DEFAULT_SUBS)), lastBackup:null},
     months:{}, tx:[], goals:[], wishes:[], accounts:[], del:{}};
 }
 function migrate(s){
@@ -309,8 +309,9 @@ function statsRaw(ym){
   const m=M(ym);
   const tx=txOfMonth(ym);
   const gastos=tx.filter(isOut), extraIn=tx.filter(t=>t.type==='in');
-  const ingFix=sum(m.income), ingExtra=sum(extraIn), ing=ingFix+ingExtra;
-  const fijos=sum(m.fixed), ahorro=Number(m.saving)||0;
+  const qp=isQ()?paysOf(ym+'-1').concat(paysOf(ym+'-2')).filter(t=>!t.start):null;
+  const ingFix=qp?sum(qp):sum(m.income), ingExtra=sum(extraIn), ing=ingFix+ingExtra;
+  const fijos=sum(m.fixed), ahorro=qp?sum(qp,'save'):(Number(m.saving)||0);
   const disp=ing-fijos-ahorro, gastado=sum(gastos);
   const byCat={}; CATS.forEach(c=>byCat[c.id]=0);
   gastos.forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+t.amount);
@@ -355,7 +356,7 @@ const accLabel = a => a ? a.name+(a.last4?' ••'+a.last4:'') : '';
 function accFlow(id){
   return mget('flows',()=>{ const f=new Map();
     for(const t of S.tx){
-      if(t.acc) f.set(t.acc,(f.get(t.acc)||0)+((t.type==='in'||t.type==='rin')?t.amount:-t.amount));
+      if(t.acc) f.set(t.acc,(f.get(t.acc)||0)+((t.type==='in'||t.type==='rin'||t.type==='pay')?t.amount:-t.amount));
       if(t.type==='tr' && t.to) f.set(t.to,(f.get(t.to)||0)+t.amount);
     }
     return f; }).get(id)||0;
@@ -653,6 +654,189 @@ function mSpJoin(){
     <button class="btn full" data-a="spPick" style="margin-top:14px">Buscar en mi Google Drive</button>`;
 }
 
+/* =========================================================
+   PAGO QUINCENAL
+   - Pagos el 15 y el último día del mes. Si cae sábado, domingo o festivo
+     (Colombia), se espera el día hábil anterior.
+   - Cada quincena va desde el día que llega el pago hasta el día antes del siguiente.
+   - El pago se anota cuando llega (con extras opcionales); el presupuesto
+     de la quincena sale de lo que entró de verdad.
+   ========================================================= */
+const EXTRAS=[{k:'fes',n:'Festivos'},{k:'noc',n:'Nocturnos'},{k:'fds',n:'Fines de semana'},{k:'hex',n:'Horas extra'},{k:'otr',n:'Otros'}];
+const isQ = () => S.settings.payMode==='q';
+function easterOf(y){
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+    h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+    mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;
+  return new Date(y,mo-1,da);
+}
+const _fest={};
+function festivos(y){ // festivos de Colombia (Ley Emiliani)
+  if(_fest[y]) return _fest[y];
+  const set=new Set(), add=d=>set.add(dstr(d));
+  const toMon=d=>{ const x=new Date(d), w=x.getDay(); if(w!==1) x.setDate(x.getDate()+((8-w)%7)); return x; };
+  [[0,1],[4,1],[6,20],[7,7],[11,8],[11,25]].forEach(([m,d])=>add(new Date(y,m,d)));
+  [[0,6],[2,19],[5,29],[7,15],[9,12],[10,1],[10,11]].forEach(([m,d])=>add(toMon(new Date(y,m,d))));
+  const e=easterOf(y), off=n=>{ const x=new Date(e); x.setDate(x.getDate()+n); return x; };
+  [-3,-2,43,64,71].forEach(n=>add(off(n)));
+  return _fest[y]=set;
+}
+const isBiz = d => { const w=d.getDay(); return w!==0 && w!==6 && !festivos(d.getFullYear()).has(dstr(d)); };
+function prevBiz(d){ const x=new Date(d); while(!isBiz(x)) x.setDate(x.getDate()-1); return x; }
+function schedDate(key){ const [y,m,q]=key.split('-').map(Number); return dstr(prevBiz(new Date(y,m-1,q===1?15:new Date(y,m,0).getDate()))); }
+const pNext = key => { const ym=key.slice(0,7); return key.endsWith('-1') ? ym+'-2' : addMonth(ym,1)+'-1'; };
+const pPrev = key => { const ym=key.slice(0,7); return key.endsWith('-2') ? ym+'-1' : addMonth(ym,-1)+'-2'; };
+function paysOf(key){
+  return mget('pays',()=>{ const m=new Map(); for(const t of S.tx) if(t.type==='pay'){ let a=m.get(t.period); if(!a) m.set(t.period,a=[]); a.push(t); } return m; }).get(key)||[];
+}
+function pStart(key){ const real=paysOf(key).filter(t=>!t.start).map(t=>t.date).sort(); return real[0]||schedDate(key); }
+function pEnd(key){ const n=parseD(pStart(pNext(key))); n.setDate(n.getDate()-1); return dstr(n); }
+function periodOf(ds){ const ym=ds.slice(0,7); if(ds>=pStart(ym+'-2')) return ym+'-2'; if(ds>=pStart(ym+'-1')) return ym+'-1'; return addMonth(ym,-1)+'-2'; }
+function pName(key){ const m=+key.slice(5,7); return (key.endsWith('-1')?'1.ª':'2.ª')+' quincena de '+MONTHS[m-1]; }
+const shortD = ds => { const d=parseD(ds); return d.getDate()+' '+MONTHS[d.getMonth()].slice(0,3); };
+// Gastos fijos de un mes; si ese mes aún no se ha planeado, se usan los del último mes planeado (se repiten).
+function fixedSource(ym){
+  const mo=S.months[ym]; if(mo && (mo.setup || (mo.fixed||[]).length)) return {list:mo.fixed||[], proj:false};
+  for(let i=1;i<=6;i++){ const p=S.months[addMonth(ym,-i)]; if(p && (p.fixed||[]).length) return {list:p.fixed, proj:true}; }
+  return null;
+}
+function fixedDate(ym,f){ return f.day ? ym+'-'+pad(Math.min(f.day,daysIn(ym))) : pStart(ym+'-1'); }
+function pSaveFor(total){ const s=S.settings; return s.saveMode==='fix' ? Math.min(total,Number(s.saveVal)||0) : Math.round(total*(Number(s.saveVal)||0)/100/100)*100; }
+function pStats(key){
+  return mget('ps:'+key,()=>{
+    const s=pStart(key), e=pEnd(key), inR=t=>t.date>=s && t.date<=e;
+    const months=[...new Set([s.slice(0,7), e.slice(0,7)])];
+    const tx=[]; months.forEach(ym=>txOfMonth(ym).forEach(t=>{ if(inR(t)) tx.push(t); }));
+    const ps=paysOf(key), pago=sum(ps), ahorro=sum(ps,'save'), extras=sum(ps,'extra');
+    const fijos=[]; months.forEach(ym=>{ const src=fixedSource(ym); if(src) src.list.forEach(f=>{ const d=fixedDate(ym,f); if(d>=s && d<=e) fijos.push({...f,ym,date:d,paid:src.proj?false:f.paid,proj:src.proj}); }); });
+    // Si se empezó a mitad de quincena con "lo que tengo hoy", los fijos anteriores a ese día ya estaban pagados
+    const sr=ps.find(p=>p.start); if(sr && !ps.some(p=>!p.start)) for(let i=fijos.length-1;i>=0;i--) if(fijos[i].date<sr.date) fijos.splice(i,1);
+    const gastos=tx.filter(isOut), extraIn=sum(tx.filter(t=>t.type==='in'));
+    const estimado=!ps.length && (Number(S.settings.payBase)||0)>0;
+    const ingBase=ps.length?pago:(estimado?Number(S.settings.payBase):0);
+    const ahorroUse=ps.length?ahorro:(estimado?pSaveFor(ingBase):0);
+    const ing=ingBase+extraIn, fijosT=sum(fijos), disp=ing-fijosT-ahorroUse, gastado=sum(gastos);
+    return {key,s,e,ps,pago,ahorro:ahorroUse,extras,extraIn,ing,fijos,fijosT,disp,gastado,restante:disp-gastado,gastos,estimado};
+  });
+}
+function periodNav(){
+  const k=ui.period, cur=periodOf(todayStr());
+  return `<div class="mnav"><button class="ib" data-a="per" data-k="-1">‹</button>
+    <div style="text-align:center"><b style="text-transform:none">${pName(k)}</b><div class="xs mut">${shortD(pStart(k))} – ${shortD(pEnd(k))}</div>${k!==cur?`<button class="link sm" data-a="perNow">Ir a la quincena actual</button>`:''}</div>
+    <button class="ib" data-a="per" data-k="1">›</button></div>`;
+}
+function qTop(){
+  const k=ui.period, st=pStats(k), t=todayStr(), cur=periodOf(t)===k, past=st.s<=t, m=M(k.slice(0,7));
+  let h='';
+  if(!st.ps.length && past){
+    const first=!S.tx.some(x=>x.type==='pay');
+    h+=`<div class="card hi"><h3>💰 ¿Ya te llegó el pago?</h3><p class="sm">Anótalo apenas llegue: así la app sabe con cuánto cuentas en la ${pName(k)}. Se esperaba el ${shortD(schedDate(k))}.</p>
+      <div class="row" style="margin-top:10px"><button class="btn" data-a="payNew">Anotar mi pago</button>${first&&cur?`<button class="btn ghost" data-a="payStart">Empezar con lo que tengo hoy</button>`:''}</div></div>`;
+  }
+  if(!st.ps.length && !st.estimado){
+    h+=`<div class="card"><div class="mut sm">⏳ Esperando el pago</div><div style="font-size:1.3rem;font-weight:800;margin:4px 0">Se espera el ${shortD(schedDate(k))}</div>
+      <p class="sm">Cuando llegue, de ahí saldrán <b>${fmt(st.fijosT)}</b> de gastos fijos y tu ahorro. Lo demás será lo que puedes gastar.</p>
+      ${st.gastado?`<p class="sm">Ya llevas gastado <b>${fmt(st.gastado)}</b> en esta quincena.</p>`:''}
+      <p class="xs mut">💡 Si pones una base por quincena en <b>Planear el mes</b>, verás un estimado antes de que llegue.</p></div>`;
+  } else {
+  const pct = st.disp>0 ? Math.min(100, st.gastado/st.disp*100) : (st.gastado>0?100:0);
+  h+=`<div class="card"><div class="between"><span class="mut sm">Te queda para esta quincena${st.estimado?' <span class="pill warn">estimado</span>':''}</span><button class="link sm" data-a="go" data-t="mes">Gastos fijos</button></div>
+    <div class="big ${st.restante<0?'neg':''}">${fmt(st.restante)}</div>
+    <div class="bar"><i style="width:${pct}%;background:${pctColor(pct)}"></i></div>
+    <div class="sm mut">Gastado ${fmt(st.gastado)} de ${fmt(st.disp)} disponibles</div>
+    <div class="kpis"><div><span>${st.estimado?'Pago (base)':'Pago'}</span><b>${fmt(st.ing)}</b></div><div><span>Fijos</span><b>${fmt(st.fijosT)}</b></div><div><span>Ahorro 🎯</span><b>${fmt(st.ahorro)}</b></div></div>
+    ${st.extras?`<div class="xs mut" style="margin-top:8px">Incluye ${fmt(st.extras)} de extras (festivos, nocturnos…)</div>`:''}
+    ${st.ps.length?`<div class="row" style="margin-top:8px">${st.ps.map(p=>`<button class="chip" data-a="edit" data-id="${p.id}">${p.start?'🏁 Saldo inicial':'💰 Pago'} ${fmt(p.amount)}</button>`).join('')}<button class="chip" data-a="payNew">+ Otro ingreso de nómina</button></div>`:''}</div>`;
+  }
+  if(cur && st.disp>0){
+    const left=daysBetween(t,st.e)+1, nextPay=pStart(pNext(k));
+    const before=sum(st.gastos.filter(x=>x.date<t)), hoy=sum(st.gastos.filter(x=>x.date===t));
+    const base=Math.max(0,(st.disp-before)/left), queda=base-hoy;
+    const total=daysBetween(st.s,st.e)+1, done=total-left+1, ritmo=st.disp*done/total, dif=st.gastado-ritmo;
+    h+=`<div class="card"><div class="between"><div><div class="mut sm">Hoy puedes gastar</div>
+      <div style="font-size:1.6rem;font-weight:800" class="${queda<0?'neg':''}">${fmt(queda)}</div>
+      <div class="xs mut">de ${fmt(base)} diarios · próximo pago ${shortD(nextPay)} (en ${daysBetween(t,nextPay)} día${daysBetween(t,nextPay)===1?'':'s'})</div></div>
+      <div style="font-size:2.2rem">${queda<0?'🔥':queda<base*.3?'😬':'😌'}</div></div>
+      <p class="sm" style="margin-top:10px">${dif>0?`⚠️ Vas <b>${fmt(dif)}</b> por encima del ritmo de la quincena.`:`👍 Vas <b>${fmt(-dif)}</b> por debajo del ritmo de la quincena. ¡Bien!`}</p></div>`;
+  }
+  if(st.fijos.length){
+    h+=`<div class="card"><h3>🧾 Fijos de esta quincena</h3>${st.fijos.sort((a,b)=>a.date<b.date?-1:1).map(f=>`<div class="li"><button class="check ${f.paid?'on':''}" data-a="togPaidQ" data-id="${f.id}" data-m="${f.ym}">${f.paid?'✓':''}</button><div class="grow"><div>${esc(f.name)}</div><div class="xs mut">${f.paid?'Pagado':'Vence '+shortD(f.date)}</div></div><b>${fmt(f.amount)}</b></div>`).join('')}</div>`;
+  }
+  if(!m.setup && !st.fijos.length) h+=`<div class="card"><div class="between"><div><b>🗓️ Agrega tus gastos fijos</b><div class="xs mut">Arriendo, servicios, plan… La app los reparte en la quincena en que se pagan.</div></div><button class="btn sm" data-a="go" data-t="mes">Agregar</button></div></div>`;
+  return h;
+}
+function vQResumen(){
+  const cur=periodOf(todayStr()); const keys=[]; let k=cur; for(let i=0;i<6;i++){ keys.unshift(k); k=pPrev(k); }
+  const rows=keys.map(k=>({k,st:pStats(k)})).filter(r=>r.st.ps.some(p=>!p.start)||r.k===cur);
+  const pagos=rows.map(r=>r.st.pago).filter(v=>v>0);
+  if(!rows.length) return '';
+  const prom=pagos.length?sum(pagos.map(v=>({amount:v})))/pagos.length:0, min=pagos.length?Math.min(...pagos):0;
+  const ym=ui.month, extrasMes=sum(paysOf(ym+'-1').concat(paysOf(ym+'-2')),'extra');
+  return `<div class="card"><h3>Tus quincenas</h3>
+    <table class="t"><tr><th>Quincena</th><th>Pago</th><th>Gastado</th><th>Sobró</th></tr>
+    ${rows.map(({k,st})=>`<tr><td>${k.endsWith('-1')?'1.ª':'2.ª'} ${MONTHS[+k.slice(5,7)-1].slice(0,3)}</td><td>${fmt(st.pago)}${st.extras?`<div class="xs pos">+${fmt(st.extras)} extra</div>`:''}</td><td>${fmt(st.gastado+st.fijosT)}</td><td class="${st.pago-st.gastado-st.fijosT<0?'neg':'pos'}">${fmt(st.pago+st.extraIn-st.gastado-st.fijosT)}</td></tr>`).join('')}</table>
+    ${pagos.length?`<div class="grid2" style="margin-top:12px"><div><div class="xs mut">Promedio por quincena</div><b>${fmt(prom)}</b></div><div><div class="xs mut">Tu quincena más baja</div><b>${fmt(min)}</b></div></div>
+    <p class="xs mut" style="margin-top:8px">💡 Planea con la quincena más baja: lo que entre de más es ganancia. ${extrasMes?`Este mes los extras te dejaron <b>${fmt(extrasMes)}</b>.`:''}</p>`:''}</div>`;
+}
+function openPay(pre){
+  const t=todayStr(), cur=periodOf(t);
+  let per=ui.period||cur; if(pStart(per)>t) per=cur;
+  ui.pform=Object.assign({id:null, period:per, amount:0, ext:{}, acc:'', date:t, save:'', start:false, note:''}, pre||{});
+  if(!ui.pform.acc && !ui.pform.start){ const a=activeAccs().find(x=>x.type!=='cre'&&x.id===lastAcc())||activeAccs().find(x=>x.type!=='cre'); ui.pform.acc=a?a.id:''; }
+  openModal('pay');
+}
+function mPay(){
+  const f=ui.pform, accs=activeAccs().filter(a=>a.type!=='cre'), opts=[pPrev(f.period),f.period,pNext(f.period)];
+  const ext=f.ext||{}, extT=EXTRAS.reduce((a,e)=>a+(Number(ext[e.k])||0),0);
+  if(f.start) return `<div class="between" style="margin-bottom:8px"><h2>Empezar con lo que tengo</h2><button class="ib" data-a="closeModal">✕</button></div>
+    <p class="sm">¿Con cuánta plata cuentas desde hoy hasta tu próximo pago (${shortD(pStart(pNext(f.period)))})? Suma lo que tengas disponible para gastar.</p>
+    <input class="f money" id="pTot" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.amount)}">
+    <p class="xs mut">No se suma a ninguna cuenta: esa plata ya está en tus cuentas. Solo le dice a la app con cuánto cuentas en esta quincena.</p>
+    <button class="btn full" data-a="paySave" style="margin-top:12px">Empezar</button>
+    ${f.id?`<button class="btn full ghost" data-a="payDel" style="margin-top:8px;color:var(--bad);border-color:var(--bad)">Eliminar</button>`:''}`;
+  return `<div class="between" style="margin-bottom:8px"><h2>${f.id?'Editar pago':'💰 Llegó mi pago'}</h2><button class="ib" data-a="closeModal">✕</button></div>
+    <label class="l">¿De qué quincena?</label><div class="chips">${opts.map(k=>`<button class="chip ${f.period===k?'on':''}" data-a="pfPer" data-v="${k}">${pName(k)}</button>`).join('')}</div>
+    <label class="l">¿Cuánto te llegó en total?</label><input class="f money" id="pTot" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.amount)}" autocomplete="off">
+    <label class="l">¿Cuánto fue por extras? <span class="mut">(opcional)</span></label>
+    <div class="grid2">${EXTRAS.map(e=>`<div><div class="xs mut" style="margin-bottom:3px">${e.n}</div><input class="f" data-money data-ext="${e.k}" inputmode="numeric" placeholder="$ 0" value="${fmtIn(ext[e.k])}"></div>`).join('')}</div>
+    <p class="sm" id="pBase" style="margin-top:8px">${pBaseTxt(f.amount,extT)}</p>
+    ${accs.length?`<label class="l">¿A qué cuenta llegó?</label><div class="chips">${accs.map(a=>`<button class="chip ${f.acc===a.id?'on':''}" data-a="pfAcc" data-v="${a.id}"><span class="bdot" style="background:${bankBy(a.bank).c}"></span>${esc(accLabel(a))}</button>`).join('')}</div>`:''}
+    <label class="l">Ahorro de esta quincena <span class="mut" id="pSaveHint">(sugerido: ${fmt(pSaveFor(f.amount))})</span></label>
+    <input class="f" id="pSave" data-money inputmode="numeric" placeholder="${fmtIn(pSaveFor(f.amount))||'$ 0'}" value="${f.save===''?'':fmtIn(f.save)}">
+    <label class="l">Fecha en que llegó</label><input class="f" id="pDate" type="date" value="${f.date}">
+    <button class="btn full" data-a="paySave" style="margin-top:14px">${f.id?'Guardar cambios':'Guardar pago'}</button>
+    ${f.id?`<button class="btn full ghost" data-a="payDel" style="margin-top:8px;color:var(--bad);border-color:var(--bad)">Eliminar</button>`:''}`;
+}
+function pBaseTxt(total,extT){ return total?(extT?`Base ${fmt(Math.max(0,total-extT))} + extras ${fmt(extT)}`:'Sin extras esta vez'):''; }
+function readPay(){
+  const f=ui.pform; if(!f) return;
+  const t=$('#pTot'), s=$('#pSave'), d=$('#pDate');
+  if(t) f.amount=parseAmt(t.value);
+  if(s) f.save=s.value.trim()===''?'':parseAmt(s.value);
+  if(d&&d.value) f.date=d.value;
+  f.ext=f.ext||{}; document.querySelectorAll('[data-ext]').forEach(i=>{ f.ext[i.dataset.ext]=parseAmt(i.value); });
+}
+
+function qMesIncome(){
+  const ym=ui.month;
+  return `<div class="card"><h3>💰 1. Tus pagos de ${MONTHS[ymParts(ym)[1]-1]}</h3><p class="xs mut">Te pagan quincenal: el 15 y el último día del mes (si cae fin de semana o festivo, se adelanta). Anota cada pago apenas llegue.</p>
+    ${[ym+'-1',ym+'-2'].map(k=>{ const ps=paysOf(k).filter(x=>!x.start); return `<div class="li"><div class="grow"><b class="sm">${pName(k)}</b><div class="xs mut">${ps.length?'Llegó el '+shortD(ps[0].date):'Se espera el '+shortD(schedDate(k))}</div></div><b>${ps.length?fmt(sum(ps)):'—'}</b>${ps.length?'':`<button class="btn sm" data-a="payNew" data-p="${k}">Anotar</button>`}</div>`; }).join('')}
+    <label class="l">Base por quincena <span class="mut">(opcional: lo mínimo que esperas ganar, para planear antes de que llegue)</span></label>
+    <input class="f" data-money data-ch="payBase" inputmode="numeric" placeholder="$ 0" value="${fmtIn(S.settings.payBase)}"></div>`;
+}
+function saveCtl(){
+  const s=S.settings, fix=s.saveMode==='fix';
+  return `<div class="chips"><button class="chip ${!fix?'on':''}" data-a="saveMode" data-v="pct">% de cada pago</button><button class="chip ${fix?'on':''}" data-a="saveMode" data-v="fix">Monto fijo por quincena</button></div>
+    <input class="f" style="margin-top:8px" data-ch="saveVal" ${fix?'data-money':''} inputmode="numeric" value="${fix?fmtIn(s.saveVal):(s.saveVal||0)}" placeholder="${fix?'$ 0':'10'}">
+    <div class="xs mut" style="margin-top:4px">${fix?'Se aparta ese monto de cada quincena.':'Ejemplo: 10 = se aparta el 10 % de lo que te llegue.'}</div>`;
+}
+function qMesSave(){ return `<div class="card"><h3>🎯 3. Ahorro</h3><p class="xs mut">Se aparta de cada pago apenas llega. Lo que sobra es lo que puedes gastar en la quincena.</p>${saveCtl()}</div>`; }
+function vPayCfg(){
+  const q=isQ(); const nx=[]; let k=periodOf(todayStr()); for(let i=0;i<3;i++){ k=pNext(k); nx.push(k); }
+  return `<div class="card"><h3>💵 ¿Cómo te pagan?</h3><div class="chips"><button class="chip ${!q?'on':''}" data-a="payMode" data-v="m">Mensual</button><button class="chip ${q?'on':''}" data-a="payMode" data-v="q">Quincenal</button></div>
+    ${q?`<p class="xs mut" style="margin-top:8px">El 15 y el último día del mes. Si cae sábado, domingo o festivo, se espera el día hábil anterior.</p><p class="sm">Próximos pagos: ${nx.map(k=>'<b>'+shortD(schedDate(k))+'</b>').join(' · ')}</p><label class="l">Ahorro</label>${saveCtl()}`
+      :`<p class="xs mut" style="margin-top:8px">Si te pagan cada 15 días o lo que ganas cambia (festivos, nocturnos, fines de semana), elige Quincenal.</p>`}</div>`;
+}
 /* ---------- tema ---------- */
 function applyTheme(){
   const t=S.settings.theme;
@@ -691,7 +875,10 @@ function render(){
   const showMonth=['inicio','movs','resumen','mes','reflexion'].includes(ui.tab);
   let h=`<div class="top">${sub?`<button class="ib" data-a="back" aria-label="Atrás">←</button>`:''}<h1>${TITLES[ui.tab]||''}</h1>
     ${ui.tab==='inicio'?`${Sync.available()?`<button class="ib" id="cloudBtn" data-a="cloud" aria-label="Respaldo en Drive">${cloudIcon()}</button>`:''}<button class="ib" data-a="go" data-t="ayuda" aria-label="Ayuda">?</button>`:''}</div><div class="wrap">`;
-  if(showMonth) h+=monthNav();
+  if(showMonth){
+    if(isQ() && ui.tab==='inicio' && !ui.space){ if(!ui.period) ui.period=periodOf(todayStr()); ui.month=ui.period.slice(0,7); h+=periodNav(); }
+    else h+=monthNav();
+  }
   if(ui.tab==='inicio'||ui.tab==='movs') h+=spaceSwitch();
   if(ui.space && !Spaces.get(ui.space)) ui.space=null;
   h+=(ui.space&&ui.tab==='inicio'?vSpace:ui.space&&ui.tab==='movs'?vSpMovs:{cuentas:vCuentas, cuenta:vCuenta, espacios:vEspacios, spajustes:vSpAjustes, inicio:vInicio, movs:vMovs, resumen:vResumen, mas:vMas, mes:vMes, reflexion:vReflexion, metas:vMetas, deseos:vDeseos, ajustes:vAjustes, historial:vHistorial, ayuda:vAyuda}[ui.tab]||vInicio)();
@@ -714,6 +901,7 @@ function monthNav(){
 function vInicio(){
   const ym=ui.month, st=stats(ym), m=st.m, t=todayStr(), isCur=ym===ymOf(t);
   let h='';
+  if(isQ()) h+=qTop(); else {
   if(!m.setup){
     const prev=addMonth(ym,-1), pm=S.months[prev];
     h+=`<div class="card hi"><h3>🌱 Planea ${MONTHS[ymParts(ym)[1]-1]}</h3>
@@ -739,11 +927,11 @@ function vInicio(){
       <div style="font-size:2.2rem">${queda<0?'🔥':queda<base*.3?'😬':'😌'}</div></div>
       <p class="sm" style="margin-top:10px">${dif>0?`⚠️ Vas <b>${fmt(dif)}</b> por encima del ritmo ideal del mes.`:`👍 Vas <b>${fmt(-dif)}</b> por debajo del ritmo ideal. ¡Bien!`}</p></div>`;
   }
-
+  }
   h+=creditAlerts();
   h+=accSection();
   // pagos fijos próximos / pendientes
-  if(isCur){
+  if(isCur && !isQ()){
     const d=new Date().getDate();
     const pend=m.fixed.filter(f=>!f.paid && f.day && f.day-d<=3).sort((a,b)=>a.day-b.day);
     if(pend.length) h+=`<div class="card warn"><h3>📅 Pagos fijos cerca</h3>${pend.map(f=>`<div class="li"><div class="grow"><b>${esc(f.name)}</b><div class="xs mut">${f.day<d?'Venció el día '+f.day:f.day===d?'Vence hoy':'Vence el día '+f.day}</div></div><span class="amt">${fmt(f.amount)}</span><button class="btn sm" data-a="paid" data-id="${f.id}">Pagado</button></div>`).join('')}</div>`;
@@ -784,6 +972,7 @@ function txRow(t){
   const row=(ic,bg,title,subt,amt,cls)=>`<div class="tx" data-a="edit" data-id="${t.id}"><div class="dot" style="background:${bg}">${ic}</div><div class="grow"><div class="ell"><b class="sm">${title}</b></div><div class="xs mut ell">${subt}</div></div><span class="amt ${cls}">${amt}</span></div>`;
   if(t.type==='tr'){ const to=accById(t.to); return row('↔️','var(--card2)', esc(t.note)||(to&&to.type==='cre'?'Pago de tarjeta':'Movimiento entre cuentas'), `${a?esc(a.name):'?'} → ${to?esc(to.name):'?'} · no es gasto`, fmt(t.amount), 'mut'); }
   if(t.type==='fix') return row('🧾','var(--card2)', esc(t.note)||'Gasto fijo', 'Gasto fijo pagado'+an, '-'+fmt(t.amount), '');
+  if(t.type==='pay') return row(t.start?'🏁':'💰','var(--acc2)', t.start?'Saldo inicial':'Pago '+pName(t.period), t.start?'Lo que tenías al empezar':(t.extra?'Incluye '+fmt(t.extra)+' de extras':'Pago de nómina')+an, t.start?fmt(t.amount):'+'+fmt(t.amount), t.start?'mut':'pos');
   if(t.type==='in'||t.type==='rin') return row('💰','var(--acc2)', esc(t.note)||'Ingreso', (t.type==='rin'?'Ingreso del plan':'Ingreso extra')+an, '+'+fmt(t.amount), 'pos');
   const c=catById(t.cat), mood=moodById(t.mood);
   return row(c.emoji, c.color+'22', esc(t.note||t.sub||c.name), esc(c.name+(t.sub?' · '+t.sub:''))+(mood?' · '+mood.emoji:'')+an, '-'+fmt(t.amount), '');
@@ -801,7 +990,7 @@ function fillTx(){
   const el=$('#txlist'); if(!el) return;
   const q=ui.q.trim().toLowerCase();
   let list=txOfMonth(ui.month).slice();
-  if(ui.filter==='in') list=list.filter(t=>t.type==='in'||t.type==='rin');
+  if(ui.filter==='in') list=list.filter(t=>t.type==='in'||t.type==='rin'||t.type==='pay');
   else if(ui.filter==='imp') list=list.filter(t=>t.mood==='imp');
   else if(ui.filter!=='all') list=list.filter(t=>isOut(t)&&t.cat===ui.filter);
   if(q) list=list.filter(t=>((t.note||'')+' '+(t.sub||'')+' '+catById(t.cat).name).toLowerCase().includes(q));
@@ -832,7 +1021,7 @@ function donut(parts,total){
 function vResumen(){
   const ym=ui.month, st=stats(ym), pv=stats(addMonth(ym,-1));
   if(!st.tx.length && !st.m.setup) return `<div class="card empty"><i>📊</i>Todavía no hay datos en ${monthName(ym)}.</div>`;
-  let h=`<div class="card"><h3>¿En qué se fue la plata?</h3><div class="donutw">${donut(CATS.map(c=>({v:st.byCat[c.id],color:c.color})),st.gastado)}
+  let h=(isQ()?vQResumen():'')+`<div class="card"><h3>¿En qué se fue la plata?</h3><div class="donutw">${donut(CATS.map(c=>({v:st.byCat[c.id],color:c.color})),st.gastado)}
     <div class="c"><div><div class="xs mut">Gastado</div><b>${fmt(st.gastado)}</b></div></div></div>
     <div class="legend">${CATS.map(c=>`<div><span style="background:${c.color}"></span>${c.name}<br><b>${fmt(st.byCat[c.id])}</b> <span class="mut xs">${st.gastado?Math.round(st.byCat[c.id]/st.gastado*100):0}%</span></div>`).join('')}</div></div>`;
 
@@ -919,7 +1108,7 @@ function vMes(){
   let h='';
   if(pm && pm.setup && !m.setup) h+=`<button class="btn full ghost" data-a="copyPrev" style="margin-bottom:12px">📋 Copiar el plan de ${MONTHS[ymParts(prev)[1]-1]}</button>`;
   // ingresos
-  h+=`<div class="card"><h3>💰 1. ¿Cuánto te entra?</h3><p class="xs mut">Sueldo, apoyo del SENA, clientes fijos… Los ingresos extra que lleguen durante el mes los anotas con el botón +.</p>
+  if(isQ()) h+=qMesIncome(); else h+=`<div class="card"><h3>💰 1. ¿Cuánto te entra?</h3><p class="xs mut">Sueldo, apoyo del SENA, clientes fijos… Los ingresos extra que lleguen durante el mes los anotas con el botón +.</p>
     ${m.income.map(i=>`<div class="li"><button class="check ${i.got?'on':''}" data-a="togInc" data-id="${i.id}" aria-label="Recibido">${i.got?'✓':''}</button><div class="grow"><div>${esc(i.name)}</div><div class="xs mut">${i.got?'Recibido':'Toca el cuadro cuando te llegue'}</div></div><b>${fmt(i.amount)}</b><button class="del" data-a="delInc" data-id="${i.id}">✕</button></div>`).join('')}
     <form data-form="addInc" class="grid2" style="margin-top:8px"><input class="f" name="name" placeholder="Ej: Sueldo" required><input class="f" name="amount" data-money inputmode="numeric" placeholder="$ Monto" required>
     <button class="btn sm" style="grid-column:span 2">+ Agregar ingreso</button></form>
@@ -933,10 +1122,12 @@ function vMes(){
     <button class="btn sm full" style="margin-top:8px">+ Agregar gasto fijo</button></form>
     <div class="between" style="margin-top:10px"><span class="mut sm">Total fijos</span><b>${fmt(st.fijos)}</b></div></div>`;
   // ahorro
+  if(isQ()) h+=qMesSave(); else {
   const base=st.ingFix-st.fijos;
   h+=`<div class="card"><h3>🎯 3. ¿Cuánto quieres ahorrar?</h3><p class="xs mut">Se separa primero. Lo que sobra es lo que puedes gastar.</p>
     <input class="f money" data-money data-ch="saving" inputmode="numeric" placeholder="$ 0" value="${fmtIn(m.saving)}">
     ${base>0?`<div class="chips" style="margin-top:8px">${[10,15,20,30].map(p=>`<button class="chip" data-a="savPct" data-p="${p}">${p}% · ${fmt(Math.round(base*p/100/1000)*1000)}</button>`).join('')}</div>`:''}</div>`;
+  }
   // presupuestos
   const asign=CATS.reduce((a,c)=>a+(Number(m.budgets[c.id])||0),0);
   h+=`<div class="card"><h3>🧮 4. Reparte por pilar <span class="pill">opcional</span></h3><p class="xs mut">Ponle un tope a cada pilar y te aviso cuando te acerques.</p>
@@ -1031,7 +1222,7 @@ function vHistorial(){
 /* ---------- AJUSTES ---------- */
 function vAjustes(){
   const s=S.settings;
-  let h=`${vDrive()}<div class="card"><h3>🎨 Apariencia</h3><div class="chips">${[['auto','Automático'],['dark','Oscuro'],['light','Claro']].map(([k,l])=>`<button class="chip ${s.theme===k?'on':''}" data-a="theme" data-v="${k}">${l}</button>`).join('')}</div></div>
+  let h=`${vPayCfg()}${vDrive()}<div class="card"><h3>🎨 Apariencia</h3><div class="chips">${[['auto','Automático'],['dark','Oscuro'],['light','Claro']].map(([k,l])=>`<button class="chip ${s.theme===k?'on':''}" data-a="theme" data-v="${k}">${l}</button>`).join('')}</div></div>
   <div class="card"><h3>🔒 Bloqueo con PIN</h3><p class="xs mut">Pide un PIN de 4 dígitos al abrir la app. Es un candado de privacidad básico.</p>
     ${s.pin?`<div class="row"><span class="pill ok">Activado</span><button class="btn sm ghost" data-a="pinOff">Quitar PIN</button></div>`:`<button class="btn sm" data-a="pinSet">Poner PIN</button>`}</div>
   <div class="card"><h3>⏳ Lista de deseos</h3><p class="xs mut">Días de espera antes de comprar un antojo.</p><div class="chips">${[7,15,30,60].map(d=>`<button class="chip ${s.wishDays===d?'on':''}" data-a="wishDays" data-v="${d}">${d} días</button>`).join('')}</div></div>
@@ -1057,6 +1248,7 @@ function vAyuda(){
     <p class="sm"><b>3. Marca cómo te sentiste</b>: ¿lo necesitabas, lo querías o fue impulso? Eso te muestra tus hábitos reales.</p>
     <p class="sm"><b>4. Mira "Hoy puedes gastar"</b> en Inicio: te dice cuánto te alcanza por día para llegar bien a fin de mes.</p>
     <p class="sm"><b>5. Al final del mes</b>, haz la reflexión con las 4 preguntas y cierra el mes. Lo que te sobró lo puedes mandar a una meta.</p></div>
+  <div class="card"><h3>💵 Si te pagan quincenal</h3><p class="sm">Actívalo en <b>Más › Ajustes › ¿Cómo te pagan?</b>. La app espera tus pagos el 15 y el último día del mes (si cae fin de semana o festivo, el día hábil anterior). Cada quincena va desde que llega la plata hasta el día antes del siguiente pago. Cuando te pague la empresa, toca <b>Anotar mi pago</b>, pon el total y, si quieres, cuánto fue por festivos, nocturnos o fines de semana. El ahorro se aparta solo (en % o monto fijo) y "Hoy puedes gastar" se calcula hasta tu próximo pago.</p></div>
   <div class="card"><h3>💳 Cuentas y tarjetas</h3><p class="sm">En <b>Más › Cuentas y tarjetas</b> agrega cada banco, billetera o el efectivo con su saldo de hoy. En las tarjetas de crédito pon el cupo, lo que debes y el día de pago. Al anotar un gasto toca con qué pagaste. Para pasar plata de una cuenta a otra o pagar la tarjeta usa <b>Mover plata</b>: no cuenta como gasto. Si un saldo no cuadra con el del banco, entra a la cuenta y toca <b>Corregir saldo</b>.</p></div>
   <div class="card"><h3>👥 Espacio compartido</h3><p class="sm">Uno crea el espacio en <b>Más › Espacios compartidos</b> y escribe el Gmail del otro. El otro toca <b>Unirme a uno</b> y elige el archivo. Arriba en Inicio cambian entre 👤 Personal y 🏠 Casa. Anoten los <b>aportes</b> al fondo y los <b>gastos</b>, diciendo si salieron del fondo o del bolsillo de alguien. Los cambios le llegan al otro en máximo un minuto con la app abierta.</p></div>
   <div class="card"><h3>Lo que tiene de más</h3><p class="sm">⚡ Registro emocional de cada gasto · 📅 Avisos de pagos fijos · ⏳ Lista de deseos con espera · 🎯 Metas con plan mensual · 📊 Resumen semanal, diario y comparación con el mes anterior · 💳 Cuentas y tarjetas con saldo y cupo · 👥 Espacios compartidos (ej: la casa) · ⭐ Atajos para repetir gastos frecuentes · 🔒 PIN · 💾 Respaldos y exportación a Excel.</p></div>
@@ -1073,7 +1265,7 @@ function openAdd(prefill){
   ui.form=Object.assign({id:null,type:'out',amount:0,cat:'sup',sub:'',mood:'',note:'',date:todayStr(),acc:'',to:''}, prefill||{});
   const f=ui.form;
   if(!f.id && !(prefill&&prefill.date) && ui.month!==ymOf(todayStr())) f.date=ui.month+'-01';
-  if(!f.id && !f.acc && f.type!=='tr') f.acc=lastAcc();
+  if(!f.id && !f.acc && f.type!=='tr'){ f.acc=lastAcc(); if(!f.acc){ const L=activeAccs(); if(L.length===1) f.acc=L[0].id; } }
   if(!f.id && f.type==='tr' && !f.acc){ const a=activeAccs().find(x=>x.type!=='cre'&&x.id!==f.to); f.acc=a?a.id:''; }
   openModal('tx');
 }
@@ -1120,6 +1312,7 @@ function renderModal(){
   let body='';
   if(k==='tx') body=mTx();
   else if(k==='acc') body=mAcc();
+  else if(k==='pay') body=mPay();
   else if(k==='tour'){ const i=d.i||0, st=TOUR[i], last=i===TOUR.length-1;
     body=`<div style="text-align:center;padding:10px 4px 0"><div style="font-size:3.4rem">${st.e}</div><h2 style="margin:8px 0">${st.t}</h2><p class="sm" style="min-height:84px">${st.p}</p>
       <div class="row" style="justify-content:center;gap:6px;margin:10px 0 16px">${TOUR.map((_,j)=>`<span style="width:${j===i?18:7}px;height:7px;border-radius:9px;background:${j===i?'var(--acc)':'var(--line)'}"></span>`).join('')}</div>
@@ -1138,7 +1331,7 @@ function renderModal(){
   $('#modal').innerHTML=`<div class="bg" data-a="bgClose"><div class="sheet"><div class="grab"></div>${body}</div></div>`;
 }
 function closeModal(fromPop){
-  ui.modal=null; ui.form=null; ui.aform=null; ui.sform=null; modalCb=null; renderModal();
+  ui.modal=null; ui.form=null; ui.aform=null; ui.sform=null; ui.pform=null; modalCb=null; renderModal();
   if(pendingRender){ pendingRender=false; render(); }
   if(!fromPop){ ignorePop++; history.back(); }
 }
@@ -1175,7 +1368,7 @@ const A = {
   monthNow:()=>{ ui.month=ymOf(todayStr()); render(); },
   openMonth:d=>{ ui.month=d.m; ui.stack=[]; ui.tab='resumen'; render(); scrollTo(0,0); },
   add:()=>ui.space?openSpAdd():openAdd(),
-  edit:d=>{ const t=S.tx.find(x=>x.id===d.id); if(t){ ui.form=Object.assign({},t); openModal('tx'); } },
+  edit:d=>{ const t=S.tx.find(x=>x.id===d.id); if(t&&t.type==='pay'){ ui.pform=JSON.parse(JSON.stringify(t)); ui.pform.ext=ui.pform.ext||{}; openModal('pay'); return; } if(t){ ui.form=Object.assign({},t); openModal('tx'); } },
   catMovs:d=>{ ui.filter=d.c; go('movs'); },
   filter:d=>{ ui.filter=d.f; render(); },
   closeModal:()=>closeModal(),
@@ -1309,7 +1502,7 @@ const A = {
   },
   savPct:d=>{ const st=stats(ui.month); M(ui.month).saving=Math.round((st.ingFix-st.fijos)*d.p/100/1000)*1000; save(); render(); },
   autoBud:()=>{ const st=stats(ui.month), m=M(ui.month), r={sup:.5,oci:.2,cul:.1,ext:.2}; for(const c of CATS) m.budgets[c.id]=Math.floor(st.disp*r[c.id]/1000)*1000; save(); render(); toast('✨ Reparto sugerido. Ajústalo a tu gusto.'); },
-  setupDone:()=>{ const m=M(ui.month); if(!m.income.length){ toast('Agrega al menos un ingreso'); return; } m.setup=true; save(); toast('✅ Plan guardado'); ui.stack=[]; ui.tab='inicio'; render(); scrollTo(0,0); },
+  setupDone:()=>{ const m=M(ui.month); if(!isQ() && !m.income.length){ toast('Agrega al menos un ingreso'); return; } m.setup=true; save(); toast('✅ Plan guardado'); ui.stack=[]; ui.tab='inicio'; render(); scrollTo(0,0); },
   closeMonth:()=>{
     const st=stats(ui.month), extra=st.ahorroReal;
     const fin=()=>{ M(ui.month).closed=true; save(); render(); toast('🔒 Mes cerrado'); };
@@ -1365,6 +1558,34 @@ const A = {
   driveSwitch:()=>{ if(!confirm('¿Cambiar de cuenta de Google? Tus datos de este celular se quedan y se respaldarán en la cuenta nueva.')) return; Sync.disconnect(); Sync.login(false); },
   driveOff:()=>{ if(!confirm('¿Desconectar Google Drive? Tu copia en Drive no se borra; podrás volver a conectarla.')) return; Sync.disconnect(); render(); toast('Drive desconectado'); },
   restoreSnap:d=>{ if(!confirm('¿Reemplazar tus datos actuales por la copia del '+d.n+'? Lo que anotaste después se perderá.')) return; Sync.restoreSnap(d.id); },
+  per:d=>{ ui.period=+d.k>0?pNext(ui.period):pPrev(ui.period); ui.month=ui.period.slice(0,7); render(); },
+  perNow:()=>{ ui.period=periodOf(todayStr()); ui.month=ui.period.slice(0,7); render(); },
+  payNew:d=>openPay(d.p?{period:d.p}:null),
+  payStart:()=>openPay({start:true, period:periodOf(todayStr()), date:todayStr()}),
+  pfPer:d=>{ readPay(); ui.pform.period=d.v; renderModal(); },
+  pfAcc:d=>{ readPay(); ui.pform.acc=ui.pform.acc===d.v?'':d.v; renderModal(); },
+  paySave:()=>{
+    readPay(); const f=ui.pform; if(!f.amount){ toast('Escribe cuánto te llegó'); return; }
+    const ext={}; let extT=0; if(!f.start) EXTRAS.forEach(e=>{ const v=Number((f.ext||{})[e.k])||0; if(v){ ext[e.k]=v; extT+=v; } });
+    if(extT>f.amount){ toast('Los extras no pueden sumar más que el total'); return; }
+    const rec={id:f.id||uid(), type:'pay', period:f.period, amount:f.amount, extra:extT, ext, acc:f.start?'':(f.acc||''), date:f.date||todayStr(),
+      save:f.start?0:(f.save===''?pSaveFor(f.amount):Math.min(f.save,f.amount)), note:f.start?'Saldo inicial':'', start:!!f.start, ts:f.ts||Date.now()};
+    const i=S.tx.findIndex(x=>x.id===rec.id); if(i>=0) S.tx[i]=rec; else S.tx.push(rec);
+    save(); closeModal(); ui.period=rec.period; ui.month=rec.period.slice(0,7); ui.space=null; ui.stack=[]; ui.tab='inicio'; render(); scrollTo(0,0);
+    toast(rec.start?'🏁 ¡Listo! Ya sabes con cuánto cuentas':'💰 Pago guardado'+(rec.save?' · ahorro '+fmt(rec.save):''));
+  },
+  payDel:()=>{ if(!confirm('¿Eliminar este pago?')) return; S.tx=S.tx.filter(x=>x.id!==ui.pform.id); save(); closeModal(); render(); toast('Eliminado'); },
+  togPaidQ:d=>{
+    let f=((S.months[d.m]||{}).fixed||[]).find(x=>x.id===d.id);
+    if(!f){ // gasto fijo proyectado desde un mes anterior: se crea el plan de este mes y se marca
+      const src=fixedSource(d.m); if(!src) return; const m=M(d.m);
+      if(!(m.fixed||[]).length){ m.fixed=src.list.map(x=>({...x,id:uid(),paid:false})); m.saving=m.saving||0; }
+      const orig=src.list.find(x=>x.id===d.id); f=m.fixed.find(x=>orig && x.name===orig.name && x.amount===orig.amount);
+      save(); if(!f) return;
+    }
+    setFixedPaid(f,!f.paid,d.m); },
+  payMode:d=>{ S.settings.payMode=d.v; save(); ui.period=null; render(); toast(d.v==='q'?'💵 Modo quincenal activado':'Modo mensual activado'); },
+  saveMode:d=>{ if(S.settings.saveMode===d.v) return; S.settings.saveMode=d.v; S.settings.saveVal=d.v==='pct'?10:0; save(); render(); },
   tourNext:()=>{ ui.modal.data.i=(ui.modal.data.i||0)+1; renderModal(); },
   tourPrev:()=>{ ui.modal.data.i=Math.max(0,(ui.modal.data.i||0)-1); renderModal(); },
   tourEnd:()=>{ try{ localStorage.setItem('mikakeibo.tour','1'); }catch(e){} closeModal(); },
@@ -1400,6 +1621,12 @@ document.addEventListener('input',e=>{
   if(el.matches('[data-ch="saving"],[data-ch="bud"]')) liveMes(el);
   if(el.id==='fNote' && ui.form) ui.form.note=el.value;
   if(el.id==='fAmt' && ui.form) ui.form.amount=parseAmt(el.value);
+  if(ui.pform && (el.id==='pTot'||el.matches('[data-ext]'))){ readPay(); const f=ui.pform, extT=EXTRAS.reduce((a,e)=>a+(Number(f.ext[e.k])||0),0);
+    const b=$('#pBase'); if(b) b.textContent=pBaseTxt(f.amount,extT);
+    const hh=$('#pSaveHint'); if(hh) hh.textContent='(sugerido: '+fmt(pSaveFor(f.amount))+')';
+    const ps=$('#pSave'); if(ps) ps.placeholder=fmtIn(pSaveFor(f.amount))||'$ 0'; }
+  if(el.matches('[data-ch="payBase"]')){ S.settings.payBase=parseAmt(el.value); save(); }
+  if(el.matches('[data-ch="saveVal"]')){ S.settings.saveVal=S.settings.saveMode==='fix'?parseAmt(el.value):Math.max(0,Math.min(90,parseInt(el.value)||0)); save(); }
 });
 function liveMes(el){
   const m=M(ui.month);
@@ -1437,7 +1664,7 @@ async function doBackup(){
 function doCsv(){
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   const rows=[['Fecha','Tipo','Pilar','Subcategoría','Monto','Nota','Cómo fue','Cuenta'].join(';')];
-  [...S.tx].sort((a,b)=>a.date<b.date?-1:1).forEach(t=>rows.push([t.date,({in:'Ingreso extra',rin:'Ingreso del plan',tr:'Movimiento entre cuentas',fix:'Gasto fijo'})[t.type]||'Gasto',isOut(t)?catById(t.cat).name:'',t.sub||'',t.amount,t.note||'',moodById(t.mood)?.name||'',accLabel(accById(t.acc))].map(q).join(';')));
+  [...S.tx].sort((a,b)=>a.date<b.date?-1:1).forEach(t=>rows.push([t.date,({pay:'Pago de nómina',in:'Ingreso extra',rin:'Ingreso del plan',tr:'Movimiento entre cuentas',fix:'Gasto fijo'})[t.type]||'Gasto',isOut(t)?catById(t.cat).name:'',t.sub||'',t.amount,t.note||'',moodById(t.mood)?.name||'',accLabel(accById(t.acc))].map(q).join(';')));
   shareOrDownload(new Blob(['﻿'+rows.join('\r\n')],{type:'text/csv'}),fileName('csv'));
 }
 $('#fileIn').addEventListener('change',async e=>{
