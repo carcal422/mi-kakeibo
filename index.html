@@ -143,7 +143,7 @@ svg text{fill:var(--mut);font-size:9px}
    Todo se guarda solo en este dispositivo (localStorage).
    ========================================================= */
 const KEY = 'mikakeibo.v1';
-const APP_VERSION = '7.1.0';
+const APP_VERSION = '8.0.0';
 const TOUR=[
   {e:'👋',t:'Bienvenido a Mi Kakeibo',p:'Es el método japonés para controlar la plata: anotar cada gasto, darte cuenta en qué se va y decidir mejor. Sin anuncios y funciona sin internet.'},
   {e:'🗓️',t:'1. Planea',p:'Escribe tus gastos fijos (arriendo, servicios…) y cuánto quieres ahorrar. ¿Te pagan cada 15 días? Activa <b>Quincenal</b> en Más › Ajustes y anota cada pago apenas llegue.'},
@@ -363,7 +363,24 @@ function accFlow(id){
 }
 function accBal(a){ const f=accFlow(a.id); return a.type==='cre' ? (a.start||0)-f : (a.start||0)+f; }
 function startFor(type,id,shown){ const f=accFlow(id); return type==='cre' ? shown+f : shown-f; }
-function accTotals(){ let tengo=0, debo=0; for(const a of activeAccs()){ const b=accBal(a); if(a.type==='cre') debo+=Math.max(0,b); else tengo+=b; } return {tengo,debo}; }
+// Uso de cada cuenta: p = para mis gastos personales; sp = espacios compartidos para los que se usa (ej: Casa)
+const accUse = a => (a && a.use) || {p:true, sp:[]};
+const personalAccs = () => activeAccs().filter(a=>accUse(a).p);
+const spaceAccs = id => activeAccs().filter(a=>(accUse(a).sp||[]).includes(id));
+function accTotals(){
+  let tengo=0, debo=0, mio=0, casa=0;
+  for(const a of activeAccs()){ const b=accBal(a); if(a.type==='cre'){ debo+=Math.max(0,b); continue; } tengo+=b; if(accUse(a).p) mio+=b; else casa+=b; }
+  return {tengo,debo,mio,casa};
+}
+function usoTxt(a){ const u=accUse(a), sps=(u.sp||[]).map(id=>{ const s=Spaces.get(id); return s?(s.emoji||'🏠')+' '+s.name:null; }).filter(Boolean); return (u.p?['👤 Mis gastos']:[]).concat(sps).join(' · '); }
+// Cuenta que aparece elegida al anotar: la principal, la última usada, o ninguna ("elegir cada vez")
+function defaultAcc(){
+  const ma=S.settings.mainAcc, L=personalAccs();
+  if(ma==='') return '';
+  if(ma && ma!=='__last'){ const a=accById(ma); if(a && !a.archived && accUse(a).p) return ma; }
+  const la=lastAcc(); if(la && accUse(accById(la)).p) return la;
+  return L.length===1 ? L[0].id : '';
+}
 function shade(hex,p){ const n=parseInt(hex.slice(1),16), f=v=>Math.max(0,Math.min(255,Math.round(v+p/100*255))); return '#'+((1<<24)+(f(n>>16)<<16)+(f((n>>8)&255)<<8)+f(n&255)).toString(16).slice(1); }
 function lastAcc(){ let id=''; try{ id=localStorage.getItem('mikakeibo.lastAcc')||''; }catch(e){} const a=accById(id); return a&&!a.archived ? id : ''; }
 function cardHtml(a,big){
@@ -373,7 +390,7 @@ function cardHtml(a,big){
     : `<div><div class="xs" style="opacity:.8">Saldo</div><div class="cbal">${fmt(bal)}</div></div>`;
   return `<div class="acard ${big?'big':''}" style="background:linear-gradient(135deg,${b.c},${shade(b.c,-22)});color:${fg}" data-a="openAcc" data-id="${a.id}">
     <div class="between"><b class="sm ell">${esc(a.name)}</b><span class="xs" style="opacity:.85">${ATYPES[a.type].e} ${ATYPES[a.type].s}</span></div>
-    ${body}<div class="xs" style="opacity:.8;letter-spacing:2px">${a.last4?'•••• '+esc(a.last4):'&nbsp;'}</div></div>`;
+    ${body}<div class="between xs" style="opacity:.85"><span style="letter-spacing:2px">${a.last4?'•••• '+esc(a.last4):'&nbsp;'}</span><span>${S.settings.mainAcc===a.id?'⭐ ':''}${!accUse(a).p?'🏠 '+esc(((Spaces.get((accUse(a).sp||[])[0])||{}).name)||'Compartida'):''}</span></div></div>`;
 }
 function accSection(){
   const L=activeAccs();
@@ -381,7 +398,7 @@ function accSection(){
   const t=accTotals();
   return `<div class="between" style="margin:4px 4px 8px"><h3 style="margin:0">Mis cuentas</h3><button class="link sm" data-a="go" data-t="cuentas">Ver todas</button></div>
     <div class="cards">${L.map(a=>cardHtml(a)).join('')}<div class="acard add" data-a="newAcc"><span style="font-size:1.6rem">+</span><span class="sm">Agregar</span></div></div>
-    <div class="sm" style="margin:0 4px 14px">Tienes <b>${fmt(t.tengo)}</b>${t.debo?` · Debes en tarjetas <b class="neg">${fmt(t.debo)}</b>`:''}</div>`;
+    <div class="sm" style="margin:0 4px 14px">💰 Dinero total <b>${fmt(t.tengo)}</b>${t.casa?` <span class="mut">(${fmt(t.mio)} tuyos · ${fmt(t.casa)} para la casa)</span>`:''}${t.debo?` · Debes en tarjetas <b class="neg">${fmt(t.debo)}</b>`:''}</div>`;
 }
 function creditAlerts(){
   const d=new Date().getDate(), dim=daysIn(ymOf(todayStr()));
@@ -390,8 +407,14 @@ function creditAlerts(){
 }
 function vCuentas(){
   const L=activeAccs(), t=accTotals();
-  let h=`<div class="card"><div class="grid2"><div><div class="xs mut">Tienes</div><b style="font-size:1.3rem">${fmt(t.tengo)}</b></div><div><div class="xs mut">Debes en tarjetas</div><b style="font-size:1.3rem" class="${t.debo?'neg':''}">${fmt(t.debo)}</b></div></div>
-    <div class="xs mut" style="margin-top:8px">Lo tuyo de verdad (lo que tienes menos lo que debes): <b>${fmt(t.tengo-t.debo)}</b></div></div>`;
+  let h=`<div class="card"><div class="xs mut">💰 Dinero total en tus cuentas</div><div class="big" style="margin-bottom:4px">${fmt(t.tengo)}</div>
+    ${t.casa?`<div class="sm">👤 Para tus gastos <b>${fmt(t.mio)}</b> · 🏠 Para la casa <b>${fmt(t.casa)}</b></div>`:''}
+    <div class="grid2" style="margin-top:10px"><div><div class="xs mut">Disponible para ti</div><b style="font-size:1.1rem">${fmt(t.mio)}</b></div><div><div class="xs mut">Debes en tarjetas</div><b style="font-size:1.1rem" class="${t.debo?'neg':''}">${fmt(t.debo)}</b></div></div>
+    <div class="xs mut" style="margin-top:8px">Lo tuyo de verdad (lo tuyo menos lo que debes): <b>${fmt(t.mio-t.debo)}</b></div></div>`;
+  const PL=personalAccs(), ma=S.settings.mainAcc===undefined?'__last':S.settings.mainAcc;
+  if(PL.length>1) h+=`<div class="card"><h3>⭐ ¿Qué cuenta aparece al anotar un gasto?</h3><div class="chips">${PL.map(a=>`<button class="chip ${ma===a.id?'on':''}" data-a="mainAcc" data-v="${a.id}"><span class="bdot" style="background:${bankBy(a.bank).c}"></span>${esc(accLabel(a))}</button>`).join('')}
+    <button class="chip ${ma==='__last'?'on':''}" data-a="mainAcc" data-v="__last">🔁 La última que usé</button><button class="chip ${ma===''?'on':''}" data-a="mainAcc" data-v="">✋ Elegir cada vez</button></div>
+    <p class="xs mut" style="margin-top:6px">Siempre puedes cambiarla al anotar. Las cuentas solo para la casa no aparecen en tus gastos personales.</p></div>`;
   if(!L.length) h+=`<div class="card empty"><i>💳</i>Agrega tu primera cuenta: Nequi, Bancolombia, tu tarjeta de crédito, el efectivo…</div>`;
   h+=L.map(a=>cardHtml(a,true)).join('');
   h+=`<button class="btn full" data-a="newAcc" style="margin:4px 0 10px">+ Agregar cuenta o tarjeta</button>`;
@@ -410,6 +433,9 @@ function vCuenta(){
       <p class="xs mut">Las compras con esta tarjeta cuentan como gasto el día que las haces. Cuando la pagas, es un movimiento entre cuentas: no se cuenta dos veces.</p></div>`;
   }
   h+=`<div class="grid2" style="margin-bottom:12px">${a.type==='cre'?`<button class="btn" data-a="payCard" data-id="${a.id}">Pagar tarjeta</button>`:`<button class="btn" data-a="move" data-from="${a.id}">Mover plata</button>`}<button class="btn ghost" data-a="adjAcc" data-id="${a.id}">${a.type==='cre'?'Corregir deuda':'Corregir saldo'}</button></div>`;
+  h+=`<div class="card"><div class="xs mut">Se usa para</div><div class="sm"><b>${usoTxt(a)||'—'}</b></div></div>`;
+  const sinCta=S.tx.filter(t=>!t.acc && t.type!=='tr' && !t.start).length;
+  if(sinCta) h+=`<button class="btn full ghost" data-a="assignOpen" data-id="${a.id}" style="margin-bottom:12px">📥 Pasar a esta cuenta movimientos sin cuenta (${sinCta})</button>`;
   h+=`<div class="card"><h3>Movimientos</h3>${list.length?list.map(txRow).join(''):'<div class="empty"><i>🫙</i>Aún no hay movimientos con esta cuenta.</div>'}</div>`;
   h+=`<div class="row" style="justify-content:center;margin-bottom:14px"><button class="btn sm ghost" data-a="editAcc" data-id="${a.id}">Editar</button><button class="btn sm ghost" data-a="delAcc" data-id="${a.id}" style="color:var(--bad);border-color:var(--bad)">Eliminar</button></div>`;
   return h;
@@ -417,6 +443,7 @@ function vCuenta(){
 const autoName = f => f.type==='cre' ? bankBy(f.bank).n+' Crédito' : bankBy(f.bank).n;
 function openAccForm(a){
   ui.aform = a ? Object.assign(JSON.parse(JSON.stringify(a)),{show:accBal(a)}) : {id:null,bank:'',type:'deb',name:'',last4:'',show:0,limit:0,cutDay:'',payDay:''};
+  ui.aform.use=JSON.parse(JSON.stringify(accUse(a)));
   openModal('acc');
 }
 function mAcc(){
@@ -431,9 +458,26 @@ function mAcc(){
     <label class="l">¿Cuánto debes hoy en esta tarjeta?</label><input class="f money" id="aShow" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.show)}">
     <div class="grid2"><div><label class="l">Día de corte</label><input class="f" id="aCut" type="number" min="1" max="31" inputmode="numeric" value="${f.cutDay||''}"></div><div><label class="l">Día límite de pago</label><input class="f" id="aPay" type="number" min="1" max="31" inputmode="numeric" value="${f.payDay||''}"></div></div>`;
   else h+=`<label class="l">¿Cuánto tienes hoy ahí?</label><input class="f money" id="aShow" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.show)}">`;
+  const SPL=Spaces.list();
+  if(SPL.length) h+=`<label class="l">¿Para qué la usas? <span class="mut">(puedes elegir varias)</span></label><div class="chips"><button class="chip ${f.use.p?'on':''}" data-a="aUse" data-v="p">👤 Mis gastos</button>${SPL.map(sp=>`<button class="chip ${f.use.sp.includes(sp.id)?'on':''}" data-a="aUse" data-v="${esc(sp.id)}">${esc(sp.emoji||'🏠')} ${esc(sp.name)}</button>`).join('')}</div>
+    <p class="xs mut">Si la marcas solo para ${esc(SPL[0].name)}, no aparece al anotar tus gastos personales y su saldo se muestra aparte, como plata de la casa.</p>`;
   h+=`<p class="xs mut" style="margin-top:10px">🔒 Nunca escribas aquí el número completo ni el código de seguridad de la tarjeta.</p>
     <button class="btn full" data-a="saveAcc" style="margin-top:6px">${f.id?'Guardar cambios':'Agregar'}</button>`;
   return h;
+}
+function openAssign(accId){
+  const list=S.tx.filter(t=>!t.acc && t.type!=='tr' && !t.start).sort(sortTx).slice(0,150);
+  openModal('assign',{accId, sel:{}, keep:true, list:list.map(t=>t.id)});
+}
+function mAssign(){
+  const d=ui.modal.data, a=accById(d.accId); if(!a) return '';
+  const list=d.list.map(id=>S.tx.find(t=>t.id===id)).filter(Boolean), n=Object.values(d.sel).filter(Boolean).length;
+  return `<div class="between" style="margin-bottom:6px"><h2>¿Estos movimientos fueron con ${esc(a.name)}?</h2><button class="ib" data-a="closeModal">✕</button></div>
+    <p class="sm mut">Son movimientos que anotaste antes sin elegir cuenta. Marca los que fueron con ${esc(a.name)} para que aparezcan en ella.</p>
+    <div class="row" style="margin:8px 0"><button class="link sm" data-a="asAll">Marcar todos</button><button class="link sm" data-a="asNone">Ninguno</button></div>
+    <div style="max-height:42vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:0 10px">${list.map(t=>`<label class="li" style="cursor:pointer"><input type="checkbox" data-ch="asOne" data-id="${t.id}" ${d.sel[t.id]?'checked':''} style="width:20px;height:20px;accent-color:var(--acc);flex:none"><div class="grow"><div class="sm ell">${esc(t.note||t.sub||(t.type==='pay'?'Pago de nómina':isOut(t)?catById(t.cat).name:'Ingreso'))}</div><div class="xs mut">${dayLabel(t.date)}</div></div><b class="sm ${isOut(t)||t.type==='fix'?'':'pos'}">${isOut(t)||t.type==='fix'?'-':'+'}${fmt(t.amount)}</b></label>`).join('')}</div>
+    <label class="sm" style="display:flex;gap:10px;align-items:flex-start;margin-top:12px;cursor:pointer"><input type="checkbox" data-ch="asKeep" ${d.keep?'checked':''} style="width:20px;height:20px;accent-color:var(--acc);flex:none"><span>El saldo que escribí para ${esc(a.name)} ya incluye estos movimientos <span class="xs mut">(recomendado: así el saldo no cambia)</span></span></label>
+    <div class="grid2" style="margin-top:14px"><button class="btn ghost" data-a="closeModal">Ahora no</button><button class="btn" data-a="asApply">${n?'Pasar '+n:'Pasar'}</button></div>`;
 }
 function readAcc(){
   const f=ui.aform; if(!f) return; const g=id=>document.getElementById(id);
@@ -451,7 +495,7 @@ function setFixedPaid(f,on,ym){
     if(acc) S.tx.push({id:uid(), type:'fix', amount:f.amount, acc, note:f.name, fixedId:f.id, date: ym===ymOf(todayStr())?todayStr():ym+'-'+pad(Math.min(f.day||1,daysIn(ym))), ts:Date.now()});
     save(); render(); toast('✅ '+f.name+' pagado');
   };
-  const accs=activeAccs(); if(!accs.length) return finish(null);
+  const accs=personalAccs(); if(!accs.length) return finish(null);
   ask({title:'¿Con qué pagaste '+f.name+'?', text:'Se descuenta del saldo de esa cuenta. No cuenta como gasto extra porque ya estaba en tu plan.', select:[...accs.map(a=>({v:a.id,l:accLabel(a)})),{v:'',l:'No descontar de ninguna cuenta'}], ok:'Listo'},
     ()=>{ const v=$('#pSel').value; closeModal(); finish(v||null); });
 }
@@ -462,7 +506,7 @@ function setIncReceived(i,on,ym){
     if(acc) S.tx.push({id:uid(), type:'rin', amount:i.amount, acc, note:i.name, incId:i.id, date: ym===ymOf(todayStr())?todayStr():ym+'-01', ts:Date.now()});
     save(); render(); toast('💰 '+i.name+' recibido');
   };
-  const accs=activeAccs().filter(a=>a.type!=='cre'); if(!accs.length) return finish(null);
+  const accs=personalAccs().filter(a=>a.type!=='cre'); if(!accs.length) return finish(null);
   ask({title:'¿A dónde te llegó '+i.name+'?', text:'Se suma al saldo de esa cuenta. Ya estaba en tu plan, así que no cambia el presupuesto.', select:[...accs.map(a=>({v:a.id,l:accLabel(a)})),{v:'',l:'No sumar a ninguna cuenta'}], ok:'Listo'},
     ()=>{ const v=$('#pSel').value; closeModal(); finish(v||null); });
 }
@@ -563,6 +607,8 @@ function vSpace(){
     <div class="kpis" style="grid-template-columns:1fr 1fr"><div><span>Aportado en ${mname}</span><b>${fmt(st.apMes)}</b></div><div><span>Gastado en ${mname}</span><b>${fmt(st.gastoMes)}</b></div></div>
     <div class="grid2" style="margin-top:12px"><button class="btn" data-a="spAdd" data-k="g">− Anotar gasto</button><button class="btn ghost" data-a="spAdd" data-k="ap">+ Anotar aporte</button></div>
     <div class="xs mut" style="margin-top:8px">${sp.lastSync?'☁️ Sincronizado '+ago(sp.lastSync):'☁️ Aún sin sincronizar'}${sp.dirty?' · ⏳ cambios por subir':''}</div></div>`;
+  const ca=spaceAccs(sp.id);
+  if(ca.length) h+=`<div class="card"><div class="between"><h3 style="margin:0">💳 Tus cuentas para ${esc(d.meta.name)}</h3><b>${fmt(ca.reduce((x,a)=>x+(a.type==='cre'?-Math.max(0,accBal(a)):accBal(a)),0))}</b></div>${ca.map(a=>`<div class="li" data-a="openAcc" data-id="${a.id}" style="cursor:pointer"><span class="bdot" style="background:${bankBy(a.bank).c}"></span><span class="grow sm">${esc(accLabel(a))}</span><b class="sm">${a.type==='cre'?'Debes '+fmt(accBal(a)):fmt(accBal(a))}</b></div>`).join('')}</div>`;
   if(st.fondo<0) h+=`<div class="card warn"><b>El fondo está en rojo</b><p class="sm">Se ha gastado ${fmt(-st.fondo)} más de lo que se ha aportado. Toca anotar un aporte.</p></div>`;
   // aportes
   h+=`<div class="card"><h3>¿Cuánto ha puesto cada uno?</h3>`;
@@ -613,19 +659,21 @@ function vSpAjustes(){
   <button class="btn full ghost" data-a="spLeave" style="color:var(--bad);border-color:var(--bad);margin-bottom:12px">Quitar este espacio de mi celular</button>`;
 }
 function openSpAdd(pre){
-  const accs=activeAccs();
-  ui.sform=Object.assign({id:null,kind:'g',amount:0,cat:'mer',paidBy:'fund',who:myEmail(),note:'',date:ui.month===ymOf(todayStr())?todayStr():ui.month+'-01',mirror:true,acc:lastAcc()||(accs[0]&&accs[0].id)||''},pre||{});
+  const pa=personalAccs(), ca=spaceAccs(ui.space);
+  ui.sform=Object.assign({id:null,kind:'g',amount:0,cat:'mer',paidBy:'fund',who:myEmail(),note:'',date:ui.month===ymOf(todayStr())?todayStr():ui.month+'-01',mirror:true,acc:defaultAcc()||(pa[0]&&pa[0].id)||'',gacc:ca[0]?ca[0].id:''},pre||{});
   openModal('spx');
 }
 function mSpx(){
   const f=ui.sform, sp=Spaces.get(ui.space), d=Spaces.data(sp.id), mem=spMembers(d), isG=f.kind==='g';
   if(f.kind==='re') return `<div class="between" style="margin-bottom:8px"><h2>Devolución</h2><button class="ib" data-a="closeModal">✕</button></div><p class="sm">El fondo le devolvió <b>${fmt(f.amount)}</b> a ${esc(spName(d,f.to))} el ${f.date.split('-').reverse().join('/')}.</p><button class="btn full ghost" data-a="spDel" style="margin-top:12px;color:var(--bad);border-color:var(--bad)">Eliminar</button>`;
-  const accs=activeAccs();
+  const accs=personalAccs(), ca=spaceAccs(sp.id), gAccs=ca.length?ca:activeAccs(), showG=isG && (f.paidBy==='fund'||f.paidBy===myEmail()) && gAccs.length;
   return `<div class="between" style="margin-bottom:10px"><h2>${f.id?'Editar':'Anotar'} en ${esc(sp.emoji)} ${esc(d.meta.name)}</h2><button class="ib" data-a="closeModal">✕</button></div>
     ${f.id?'':`<div class="seg" style="margin-bottom:12px"><button class="${isG?'on':''}" data-a="sfKind" data-v="g">Gasto de la casa</button><button class="${!isG?'on':''}" data-a="sfKind" data-v="ap">Aporte al fondo</button></div>`}
     <input class="f money" id="sAmt" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.amount)}" autocomplete="off">
     ${isG?`<label class="l">¿En qué?</label><div class="cats3">${SP_CATS.map(c=>`<button class="${f.cat===c.id?'on':''}" style="${f.cat===c.id?`border-color:${c.c};background:${c.c}22`:''}" data-a="sfCat" data-v="${c.id}"><span>${c.e}</span>${c.n}</button>`).join('')}</div>
       <label class="l">¿Con qué plata se pagó?</label><div class="chips"><button class="chip ${f.paidBy==='fund'?'on':''}" data-a="sfPaid" data-v="fund">🏦 Del fondo común</button>${mem.map(m=>`<button class="chip ${f.paidBy===m.email?'on':''}" data-a="sfPaid" data-v="${esc(m.email)}">👤 ${m.email===myEmail()?'Yo, de mi bolsillo':'Lo pagó '+esc(spName(d,m.email))}</button>`).join('')}</div>
+      ${showG?`<label class="l">¿De qué cuenta tuya salió? <span class="mut">(opcional)</span></label><div class="chips">${gAccs.map(a=>`<button class="chip ${f.gacc===a.id?'on':''}" data-a="sfGacc" data-v="${a.id}"><span class="bdot" style="background:${bankBy(a.bank).c}"></span>${esc(accLabel(a))}</button>`).join('')}</div>
+        <p class="xs mut">Se descuenta del saldo de esa cuenta, pero no cuenta como gasto personal tuyo.${ca.length?'':' Tip: en Cuentas puedes marcar cuáles usas para la casa.'}</p>`:''}
       ${f.paidBy!=='fund'?`<p class="xs mut">La casa le quedará debiendo esta plata a ${f.paidBy===myEmail()?'ti':esc(spName(d,f.paidBy))}. Luego la pueden devolver desde el fondo.</p>`:''}`
     :`<label class="l">¿Quién aporta?</label><div class="chips">${mem.map(m=>`<button class="chip ${f.who===m.email?'on':''}" data-a="sfWho" data-v="${esc(m.email)}">${esc(spName(d,m.email))}</button>`).join('')}</div>
       ${!f.id&&f.who===myEmail()?`<label class="row sm" style="margin-top:12px;gap:10px;flex-wrap:nowrap;cursor:pointer"><input type="checkbox" data-ch="sfMirror" ${f.mirror?'checked':''} style="width:20px;height:20px;accent-color:var(--acc);flex:none"> Anotarlo también en mi Kakeibo personal (como gasto de Supervivencia › Casa)</label>
@@ -782,11 +830,11 @@ function openPay(pre){
   const t=todayStr(), cur=periodOf(t);
   let per=ui.period||cur; if(pStart(per)>t) per=cur;
   ui.pform=Object.assign({id:null, period:per, amount:0, ext:{}, acc:'', date:t, save:'', start:false, note:''}, pre||{});
-  if(!ui.pform.acc && !ui.pform.start){ const a=activeAccs().find(x=>x.type!=='cre'&&x.id===lastAcc())||activeAccs().find(x=>x.type!=='cre'); ui.pform.acc=a?a.id:''; }
+  if(!ui.pform.acc && !ui.pform.start){ const da=accById(defaultAcc()); const a=(da&&da.type!=='cre'?da:null)||personalAccs().find(x=>x.type!=='cre'); ui.pform.acc=a?a.id:''; }
   openModal('pay');
 }
 function mPay(){
-  const f=ui.pform, accs=activeAccs().filter(a=>a.type!=='cre'), opts=[pPrev(f.period),f.period,pNext(f.period)];
+  const f=ui.pform, accs=personalAccs().filter(a=>a.type!=='cre'), opts=[pPrev(f.period),f.period,pNext(f.period)];
   const ext=f.ext||{}, extT=EXTRAS.reduce((a,e)=>a+(Number(ext[e.k])||0),0);
   if(f.start) return `<div class="between" style="margin-bottom:8px"><h2>Empezar con lo que tengo</h2><button class="ib" data-a="closeModal">✕</button></div>
     <p class="sm">¿Con cuánta plata cuentas desde hoy hasta tu próximo pago (${shortD(pStart(pNext(f.period)))})? Suma lo que tengas disponible para gastar.</p>
@@ -972,6 +1020,7 @@ function txRow(t){
   const row=(ic,bg,title,subt,amt,cls)=>`<div class="tx" data-a="edit" data-id="${t.id}"><div class="dot" style="background:${bg}">${ic}</div><div class="grow"><div class="ell"><b class="sm">${title}</b></div><div class="xs mut ell">${subt}</div></div><span class="amt ${cls}">${amt}</span></div>`;
   if(t.type==='tr'){ const to=accById(t.to); return row('↔️','var(--card2)', esc(t.note)||(to&&to.type==='cre'?'Pago de tarjeta':'Movimiento entre cuentas'), `${a?esc(a.name):'?'} → ${to?esc(to.name):'?'} · no es gasto`, fmt(t.amount), 'mut'); }
   if(t.type==='fix') return row('🧾','var(--card2)', esc(t.note)||'Gasto fijo', 'Gasto fijo pagado'+an, '-'+fmt(t.amount), '');
+  if(t.type==='sp') return row('🏠','var(--card2)', esc(t.note)||'Gasto de la casa', 'Pagado para '+esc(t.space||'la casa')+' · no es gasto personal'+an, '-'+fmt(t.amount), '');
   if(t.type==='pay') return row(t.start?'🏁':'💰','var(--acc2)', t.start?'Saldo inicial':'Pago '+pName(t.period), t.start?'Lo que tenías al empezar':(t.extra?'Incluye '+fmt(t.extra)+' de extras':'Pago de nómina')+an, t.start?fmt(t.amount):'+'+fmt(t.amount), t.start?'mut':'pos');
   if(t.type==='in'||t.type==='rin') return row('💰','var(--acc2)', esc(t.note)||'Ingreso', (t.type==='rin'?'Ingreso del plan':'Ingreso extra')+an, '+'+fmt(t.amount), 'pos');
   const c=catById(t.cat), mood=moodById(t.mood);
@@ -1267,13 +1316,13 @@ function openAdd(prefill){
   ui.form=Object.assign({id:null,type:'out',amount:0,cat:'sup',sub:'',mood:'',note:'',date:todayStr(),acc:'',to:''}, prefill||{});
   const f=ui.form;
   if(!f.id && !(prefill&&prefill.date) && ui.month!==ymOf(todayStr())) f.date=ui.month+'-01';
-  if(!f.id && !f.acc && f.type!=='tr'){ f.acc=lastAcc(); if(!f.acc){ const L=activeAccs(); if(L.length===1) f.acc=L[0].id; } }
+  if(!f.id && !f.acc && f.type!=='tr') f.acc=defaultAcc();
   if(!f.id && f.type==='tr' && !f.acc){ const a=activeAccs().find(x=>x.type!=='cre'&&x.id!==f.to); f.acc=a?a.id:''; }
   openModal('tx');
 }
 function mTx(){
   const f=ui.form, T=f.type||'out', out=T==='out', isIn=T==='in'||T==='rin', isTr=T==='tr', subs=S.settings.subs[f.cat]||[];
-  const sc=!f.id&&out?shortcuts():[], accs=activeAccs();
+  const sc=!f.id&&out?shortcuts():[], accs=activeAccs(), pAccs=personalAccs();
   const chips=(field,label,list)=>list.length?`<label class="l">${label}</label><div class="chips">${list.map(a=>`<button class="chip ${f[field]===a.id?'on':''}" data-a="fAcc" data-k="${field}" data-v="${a.id}"><span class="bdot" style="background:${bankBy(a.bank).c}"></span>${esc(accLabel(a))}</button>`).join('')}</div>`:'';
   const title=T==='fix'?'Pago de gasto fijo':T==='rin'?'Ingreso del plan':(f.id?'Editar':'Nuevo')+' movimiento';
   let h=`<div class="between" style="margin-bottom:10px"><h2>${title}</h2><button class="ib" data-a="closeModal">✕</button></div>`;
@@ -1287,9 +1336,9 @@ function mTx(){
   } else if(out){
     h+=`<label class="l">Pilar</label><div class="cats4">${CATS.map(c=>`<button class="${f.cat===c.id?'on':''}" style="${f.cat===c.id?`border-color:${c.color};background:${c.color}22`:''}" data-a="fCat" data-v="${c.id}"><span>${c.emoji}</span>${c.name}</button>`).join('')}</div>
       <label class="l">Subcategoría</label><div class="chips">${subs.map(s=>`<button class="chip ${f.sub===s?'on':''}" data-a="fSub" data-v="${esc(s)}">${esc(s)}</button>`).join('')}</div>
-      ${chips('acc','¿Con qué pagaste?',accs)}
+      ${chips('acc','¿Con qué pagaste?',pAccs)}
       <label class="l">¿Cómo fue este gasto?</label><div class="chips">${MOODS.map(m=>`<button class="chip ${f.mood===m.id?'on':''}" data-a="fMood" data-v="${m.id}">${m.emoji} ${m.name}</button>`).join('')}</div>`;
-  } else h+=chips('acc',isIn?'¿A dónde llegó?':'¿Con qué pagaste?',isIn?accs.filter(a=>a.type!=='cre'):accs);
+  } else h+=chips('acc',isIn?'¿A dónde llegó?':'¿Con qué pagaste?',isIn?pAccs.filter(a=>a.type!=='cre'):pAccs);
   h+=`<label class="l">Nota</label><input class="f" id="fNote" placeholder="${isIn?'Ej: Mantenimiento de un portátil':isTr?'Ej: Pasé a Nequi':'Ej: Almuerzo en el centro'}" value="${esc(f.note)}" maxlength="80">
     <label class="l">Fecha</label><input class="f" id="fDate" type="date" value="${f.date}">
     <button class="btn full" data-a="saveTx" style="margin-top:16px">${f.id?'Guardar cambios':'Guardar'}</button>
@@ -1315,6 +1364,7 @@ function renderModal(){
   if(k==='tx') body=mTx();
   else if(k==='acc') body=mAcc();
   else if(k==='pay') body=mPay();
+  else if(k==='assign') body=mAssign();
   else if(k==='tour'){ const i=d.i||0, st=TOUR[i], last=i===TOUR.length-1;
     body=`<div style="text-align:center;padding:10px 4px 0"><div style="font-size:3.4rem">${st.e}</div><h2 style="margin:8px 0">${st.t}</h2><p class="sm" style="min-height:84px">${st.p}</p>
       <div class="row" style="justify-content:center;gap:6px;margin:10px 0 16px">${TOUR.map((_,j)=>`<span style="width:${j===i?18:7}px;height:7px;border-radius:9px;background:${j===i?'var(--acc)':'var(--line)'}"></span>`).join('')}</div>
@@ -1370,7 +1420,7 @@ const A = {
   monthNow:()=>{ ui.month=ymOf(todayStr()); render(); },
   openMonth:d=>{ ui.month=d.m; ui.stack=[]; ui.tab='resumen'; render(); scrollTo(0,0); },
   add:()=>ui.space?openSpAdd():openAdd(),
-  edit:d=>{ const t=S.tx.find(x=>x.id===d.id); if(t&&t.type==='pay'){ ui.pform=JSON.parse(JSON.stringify(t)); ui.pform.ext=ui.pform.ext||{}; openModal('pay'); return; } if(t){ ui.form=Object.assign({},t); openModal('tx'); } },
+  edit:d=>{ const t=S.tx.find(x=>x.id===d.id); if(t&&t.type==='sp'){ const sp=Spaces.list().find(s=>Spaces.data(s.id).items.some(i=>i.id===t.spaceRef)); if(sp){ ui.space=sp.id; ui.stack=[]; ui.tab='inicio'; render(); A.spEdit({id:t.spaceRef}); } else toast('Este gasto es de un espacio compartido que ya no está en este celular'); return; } if(t&&t.type==='pay'){ ui.pform=JSON.parse(JSON.stringify(t)); ui.pform.ext=ui.pform.ext||{}; openModal('pay'); return; } if(t){ ui.form=Object.assign({},t); openModal('tx'); } },
   catMovs:d=>{ ui.filter=d.c; go('movs'); },
   filter:d=>{ ui.filter=d.f; render(); },
   closeModal:()=>closeModal(),
@@ -1426,9 +1476,13 @@ const A = {
     readAcc(); const f=ui.aform; if(!f.bank){ toast('Elige el banco'); return; }
     const old=f.id?accById(f.id):null, id=f.id||uid();
     const rec={id, bank:f.bank, type:f.type, name:(f.name||'').trim()||autoName(f), last4:f.type==='efe'?'':(f.last4||''), limit:f.type==='cre'?f.limit:0, cutDay:f.type==='cre'?f.cutDay:'', payDay:f.type==='cre'?f.payDay:'', created:(old&&old.created)||todayStr()};
+    rec.use=f.use||{p:true,sp:[]};
+    if(!rec.use.p && !(rec.use.sp||[]).length){ toast('Elige para qué usas esta cuenta'); return; }
     rec.start=startFor(rec.type,id,f.show||0);
     if(old) Object.assign(old,rec); else S.accounts.push(rec);
     save(); closeModal(); render(); toast(old?'✅ Cuenta actualizada':'💳 '+rec.name+' agregada');
+    // Cuenta nueva: ofrecer pasarle los movimientos que ya estaban anotados sin cuenta
+    if(!old && S.tx.some(t=>!t.acc && t.type!=='tr' && !t.start)) setTimeout(()=>openAssign(id),350);
   },
   adjAcc:d=>{ const a=accById(d.id); if(!a) return;
     ask({title:a.type==='cre'?'¿Cuánto debes hoy en '+a.name+'?':'¿Cuánto tienes hoy en '+a.name+'?', text:'Mira el saldo en la app del banco y escríbelo. La diferencia se ajusta sin contarla como gasto.', money:true, value:fmtIn(Math.max(0,accBal(a))), ok:'Corregir'},
@@ -1439,7 +1493,8 @@ const A = {
   // espacios
   space:d=>{ ui.space=d.id||null; if(ui.tab!=='inicio'&&ui.tab!=='movs'){ ui.stack=[]; ui.tab='inicio'; } render(); scrollTo(0,0); },
   spAdd:d=>openSpAdd({kind:d.k}),
-  spEdit:d=>{ const x=Spaces.data(ui.space).items.find(i=>i.id===d.id); if(x){ ui.sform=Object.assign({mirror:false},JSON.parse(JSON.stringify(x))); openModal('spx'); } },
+  spEdit:d=>{ const x=Spaces.data(ui.space).items.find(i=>i.id===d.id); if(x){ const m=S.tx.find(t=>t.type==='sp'&&t.spaceRef===x.id); ui.sform=Object.assign({mirror:false,gacc:m?m.acc:''},JSON.parse(JSON.stringify(x))); openModal('spx'); } },
+  sfGacc:d=>{ readSp(); ui.sform.gacc=ui.sform.gacc===d.v?'':d.v; renderModal(); },
   sfKind:d=>{ readSp(); ui.sform.kind=d.v; renderModal(); },
   sfCat:d=>{ readSp(); ui.sform.cat=d.v; renderModal(); },
   sfPaid:d=>{ readSp(); ui.sform.paidBy=d.v; renderModal(); },
@@ -1452,6 +1507,12 @@ const A = {
     if(f.kind==='g'){ rec.cat=f.cat; rec.paidBy=f.paidBy; } else rec.who=f.who||myEmail();
     const i=d.items.findIndex(x=>x.id===rec.id); if(i>=0) d.items[i]=Object.assign({},d.items[i],rec); else d.items.push(rec);
     Spaces.save(sp.id);
+    if(f.kind==='g'){ // descuento en la cuenta personal de la que salió (no es gasto personal)
+      const before=S.tx.length; S.tx=S.tx.filter(t=>!(t.type==='sp'&&t.spaceRef===rec.id));
+      const paidMine=rec.paidBy==='fund'||rec.paidBy===myEmail();
+      if(f.gacc && paidMine) S.tx.push({id:uid(), type:'sp', amount:rec.amount, acc:f.gacc, note:rec.note||spCat(rec.cat).n, space:d.meta.name, spaceRef:rec.id, date:rec.date, ts:Date.now()});
+      if(S.tx.length!==before || (f.gacc && paidMine)) save();
+    }
     if(!f.id && f.kind==='ap' && rec.who===myEmail() && f.mirror){
       if(!S.settings.subs.sup.includes('Casa')) S.settings.subs.sup.push('Casa');
       S.tx.push({id:uid(), type:'out', amount:rec.amount, cat:'sup', sub:'Casa', mood:'nec', note:'Aporte a '+d.meta.name, date:rec.date, acc:f.acc||'', spaceRef:rec.id, ts:Date.now()});
@@ -1595,6 +1656,19 @@ const A = {
     catch(e){ toast('No se pudo revisar ahora. Intenta en un momento.'); }
   },
   doUpdate:()=>hardUpdate(),
+  mainAcc:d=>{ S.settings.mainAcc=d.v; save(); render(); toast(d.v===''?'✋ Elegirás la cuenta cada vez':d.v==='__last'?'🔁 Se usará la última cuenta':'⭐ Cuenta principal: '+accById(d.v).name); },
+  aUse:d=>{ readAcc(); const u=ui.aform.use; if(d.v==='p') u.p=!u.p; else { u.sp=u.sp||[]; const i=u.sp.indexOf(d.v); if(i>=0) u.sp.splice(i,1); else u.sp.push(d.v); } renderModal(); },
+  assignOpen:d=>openAssign(d.id),
+  asAll:()=>{ const md=ui.modal.data; md.list.forEach(id=>md.sel[id]=true); renderModal(); },
+  asNone:()=>{ ui.modal.data.sel={}; renderModal(); },
+  asApply:()=>{
+    const md=ui.modal.data, a=accById(md.accId), ids=Object.keys(md.sel).filter(k=>md.sel[k]);
+    if(!a||!ids.length){ toast('Marca al menos un movimiento'); return; }
+    const antes=accBal(a);
+    S.tx=S.tx.map(t=>ids.includes(t.id)?Object.assign({},t,{acc:a.id}):t); save();
+    if(md.keep){ a.start=startFor(a.type,a.id,antes); save(); }
+    closeModal(); render(); toast('📥 '+ids.length+' movimiento'+(ids.length>1?'s':'')+' en '+a.name+(md.keep?' · el saldo no cambió':''));
+  },
   tourNext:()=>{ ui.modal.data.i=(ui.modal.data.i||0)+1; renderModal(); },
   tourPrev:()=>{ ui.modal.data.i=Math.max(0,(ui.modal.data.i||0)-1); renderModal(); },
   tourEnd:()=>{ try{ localStorage.setItem('mikakeibo.tour','1'); }catch(e){} closeModal(); },
@@ -1648,6 +1722,8 @@ function liveMes(el){
 document.addEventListener('change',e=>{
   const el=e.target;
   if(el.matches('[data-ch="autoDrive"]')){ S.settings.autoDrive=el.checked; save(); }
+  if(el.matches('[data-ch="asOne"]') && ui.modal && ui.modal.kind==='assign'){ ui.modal.data.sel[el.dataset.id]=el.checked; const n=Object.values(ui.modal.data.sel).filter(Boolean).length, b=document.querySelector('[data-a="asApply"]'); if(b) b.textContent=n?'Pasar '+n:'Pasar'; }
+  if(el.matches('[data-ch="asKeep"]') && ui.modal && ui.modal.kind==='assign') ui.modal.data.keep=el.checked;
   if(el.matches('[data-ch="sfMirror"]')&&ui.sform){ readSp(); ui.sform.mirror=el.checked; renderModal(); }
   if(el.matches('[data-ch="spName"]')&&ui.space){ const d=Spaces.data(ui.space); d.meta.name=el.value.trim()||d.meta.name; Spaces.save(ui.space); }
   if(el.matches('[data-ch="spSplit"]')&&ui.space){ const d=Spaces.data(ui.space); d.meta.split[el.dataset.e]=Math.max(0,Math.min(100,parseInt(el.value)||0)); Spaces.save(ui.space); render(); }
@@ -1673,7 +1749,7 @@ async function doBackup(){
 function doCsv(){
   const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';
   const rows=[['Fecha','Tipo','Pilar','Subcategoría','Monto','Nota','Cómo fue','Cuenta'].join(';')];
-  [...S.tx].sort((a,b)=>a.date<b.date?-1:1).forEach(t=>rows.push([t.date,({pay:'Pago de nómina',in:'Ingreso extra',rin:'Ingreso del plan',tr:'Movimiento entre cuentas',fix:'Gasto fijo'})[t.type]||'Gasto',isOut(t)?catById(t.cat).name:'',t.sub||'',t.amount,t.note||'',moodById(t.mood)?.name||'',accLabel(accById(t.acc))].map(q).join(';')));
+  [...S.tx].sort((a,b)=>a.date<b.date?-1:1).forEach(t=>rows.push([t.date,({sp:'Pago de la casa',pay:'Pago de nómina',in:'Ingreso extra',rin:'Ingreso del plan',tr:'Movimiento entre cuentas',fix:'Gasto fijo'})[t.type]||'Gasto',isOut(t)?catById(t.cat).name:'',t.sub||'',t.amount,t.note||'',moodById(t.mood)?.name||'',accLabel(accById(t.acc))].map(q).join(';')));
   shareOrDownload(new Blob(['﻿'+rows.join('\r\n')],{type:'text/csv'}),fileName('csv'));
 }
 $('#fileIn').addEventListener('change',async e=>{
