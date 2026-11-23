@@ -143,7 +143,7 @@ svg text{fill:var(--mut);font-size:9px}
    Todo se guarda solo en este dispositivo (localStorage).
    ========================================================= */
 const KEY = 'mikakeibo.v1';
-const APP_VERSION = '5.0.0';
+const APP_VERSION = '6.0.0';
 const TOUR=[
   {e:'👋',t:'Bienvenido a Mi Kakeibo',p:'Es el método japonés para controlar la plata: anotar cada gasto, darte cuenta en qué se va y decidir mejor. Sin anuncios y funciona sin internet.'},
   {e:'🗓️',t:'1. Planea el mes',p:'Al empezar cada mes escribe lo que te entra, tus gastos fijos (arriendo, servicios…) y cuánto quieres ahorrar. Lo que sobra es lo que puedes gastar.'},
@@ -221,8 +221,20 @@ function migrate(s){
   s.months=s.months||{}; s.tx=Array.isArray(s.tx)?s.tx:[]; s.goals=s.goals||[]; s.wishes=s.wishes||[]; s.del=(s.del&&typeof s.del==='object')?s.del:{}; s.accounts=Array.isArray(s.accounts)?s.accounts:[];
   s.v=1; return s;
 }
+/* Almacenamiento: los movimientos se guardan por año (mikakeibo.v1.tx.2026…) y el resto en
+   mikakeibo.v1.meta. Así, al anotar un gasto solo se reescribe el año que cambió. */
+const META_KEY = KEY+'.meta', TX_KEY = y => KEY+'.tx.'+y;
+let storedYears = null, dataVer = 0;
 function load(){
-  try{ const r=localStorage.getItem(KEY); if(r) return migrate(JSON.parse(r)); }catch(e){ console.error(e); }
+  try{
+    const meta=localStorage.getItem(META_KEY);
+    if(meta){
+      const s=JSON.parse(meta), years=s._years||[]; delete s._years; s.tx=[];
+      for(const y of years){ const r=localStorage.getItem(TX_KEY(y)); if(r){ const arr=JSON.parse(r); for(let i=0;i<arr.length;i++) s.tx.push(arr[i]); } }
+      storedYears=new Set(years); return migrate(s);
+    }
+    const r=localStorage.getItem(KEY); if(r) return migrate(JSON.parse(r)); // formato anterior: se convierte al guardar
+  }catch(e){ console.error(e); }
   return defState();
 }
 let S = load();
@@ -235,28 +247,67 @@ function recordsOf(s){
   r.push(['s:',s.settings]); return r;
 }
 const NOSIG={u:1,pin:1,lastBackup:1};
-const sig = o => JSON.stringify(o,(k,v)=>NOSIG[k]?undefined:v);
-function buildMap(s){ const m=new Map(); for(const [k,o] of recordsOf(s)) m.set(k,sig(o)); return m; }
+function sig(o){
+  if(o.pin!==undefined || o.lastBackup!==undefined) return JSON.stringify(o,(k,v)=>NOSIG[k]?undefined:v);
+  const {u,...r}=o; return JSON.stringify(r); // rápido: sin función de reemplazo
+}
+// Los movimientos NUNCA se modifican en sitio (al editar se reemplaza el objeto completo),
+// así que su firma se puede recordar y no recalcular en cada guardado.
+const txSig=new WeakMap();
+function sigTx(o){ let v=txSig.get(o); if(v===undefined){ v=sig(o); txSig.set(o,v); } return v; }
+let prevYears = new Map();
+function buildMap(s){
+  const m=new Map(); prevYears=new Map();
+  for(const [k,o] of recordsOf(s)){ const isTx=k[0]==='t'&&k[1]===':'; m.set(k,isTx?sigTx(o):sig(o)); if(isTx) prevYears.set(k,(o.date||'').slice(0,4)); }
+  return m;
+}
 let prevMap = buildMap(S);
 function stamp(){
-  const now=Date.now(), cur=new Map(); let changed=false;
-  for(const [k,o] of recordsOf(S)){ const j=sig(o); cur.set(k,j); if(prevMap.get(k)!==j){ o.u=now; delete S.del[k]; changed=true; } }
-  for(const k of prevMap.keys()) if(!cur.has(k)){ S.del[k]=now; changed=true; }
-  prevMap=cur; return changed;
+  const now=Date.now(), cur=new Map(), years=new Set(), ny=new Map(); let changed=false;
+  for(const [k,o] of recordsOf(S)){
+    const isTx=k[0]==='t'&&k[1]===':', j=isTx?sigTx(o):sig(o); cur.set(k,j);
+    if(isTx) ny.set(k,(o.date||'').slice(0,4));
+    if(prevMap.get(k)!==j){ o.u=now; delete S.del[k]; changed=true; if(isTx){ years.add((o.date||'').slice(0,4)); if(prevYears.has(k)) years.add(prevYears.get(k)); } }
+  }
+  for(const k of prevMap.keys()) if(!cur.has(k)){ S.del[k]=now; changed=true; if(prevYears.has(k)) years.add(prevYears.get(k)); }
+  prevMap=cur; prevYears=ny; return {changed, years};
 }
-function persist(){
-  try{ localStorage.setItem(KEY, JSON.stringify(S)); }
-  catch(e){ toast('⚠️ No se pudo guardar: '+e.message); }
+// years: Set de años a reescribir (vacío = solo lo general). Sin argumento = todo.
+function persist(years){
+  dataVer++;
+  try{
+    const full=!years || storedYears===null;
+    // Pasar del formato anterior: se libera ese espacio primero (queda una copia en memoria por si algo falla)
+    let legacy=null; if(storedYears===null){ legacy=localStorage.getItem(KEY); if(legacy!==null) localStorage.removeItem(KEY); }
+    try{
+    const byYear={};
+    if(full){ for(const t of S.tx){ const y=(t.date||'').slice(0,4); (byYear[y]=byYear[y]||[]).push(t); } }
+    else if(years.size){ for(const y of years) byYear[y]=[]; for(const t of S.tx){ const y=(t.date||'').slice(0,4); if(years.has(y)) byYear[y].push(t); } }
+    const keep=new Set(full?[]:(storedYears||[]));
+    for(const y in byYear){ if(byYear[y].length){ localStorage.setItem(TX_KEY(y),JSON.stringify(byYear[y])); keep.add(y); } else { localStorage.removeItem(TX_KEY(y)); keep.delete(y); } }
+    if(full) for(const y of (storedYears||[])) if(!keep.has(y)) localStorage.removeItem(TX_KEY(y));
+    const {tx,...meta}=S; meta._years=[...keep].sort();
+    localStorage.setItem(META_KEY, JSON.stringify(meta));
+    storedYears=keep;
+    }catch(e){ if(legacy!==null){ try{ localStorage.setItem(KEY,legacy); }catch(_){} } throw e; }
+  }catch(e){ toast('⚠️ No se pudo guardar: '+e.message+'. Haz un respaldo en Más › Ajustes.'); }
 }
-function save(){ const ch=stamp(); persist(); if(ch && typeof Sync!=='undefined') Sync.changed(); }
+function save(){ const r=stamp(); persist(r.years); if(r.changed && typeof Sync!=='undefined') Sync.changed(); }
+// Resultados guardados en memoria hasta el próximo cambio (para que las pantallas abran rápido)
+const memo={v:-1,m:null};
+function mget(k,fn){ if(memo.v!==dataVer){ memo.v=dataVer; memo.m=new Map(); } if(!memo.m.has(k)) memo.m.set(k,fn()); return memo.m.get(k); }
+function txOfMonth(ym){
+  return mget('idx',()=>{ const m=new Map(); for(const t of S.tx){ const k=(t.date||'').slice(0,7); let a=m.get(k); if(!a) m.set(k,a=[]); a.push(t); } return m; }).get(ym)||[];
+}
 function M(ym){
   if(!S.months[ym]) S.months[ym]={income:[], fixed:[], saving:0, budgets:{sup:0,oci:0,cul:0,ext:0}, refl:{a:'',b:'',c:'',d:''}, setup:false, closed:false};
   const m=S.months[ym]; m.budgets=m.budgets||{sup:0,oci:0,cul:0,ext:0}; m.refl=m.refl||{a:'',b:'',c:'',d:''};
   return m;
 }
-function stats(ym){
+function stats(ym){ M(ym); return mget('st:'+ym,()=>statsRaw(ym)); }
+function statsRaw(ym){
   const m=M(ym);
-  const tx=S.tx.filter(t=>t.date.startsWith(ym));
+  const tx=txOfMonth(ym);
   const gastos=tx.filter(isOut), extraIn=tx.filter(t=>t.type==='in');
   const ingFix=sum(m.income), ingExtra=sum(extraIn), ing=ingFix+ingExtra;
   const fijos=sum(m.fixed), ahorro=Number(m.saving)||0;
@@ -302,12 +353,12 @@ const accById = id => id ? S.accounts.find(a=>a.id===id) : null;
 const activeAccs = () => S.accounts.filter(a=>!a.archived);
 const accLabel = a => a ? a.name+(a.last4?' ••'+a.last4:'') : '';
 function accFlow(id){
-  let v=0;
-  for(const t of S.tx){
-    if(t.acc===id){ if(t.type==='in'||t.type==='rin') v+=t.amount; else v-=t.amount; }
-    if(t.type==='tr' && t.to===id) v+=t.amount;
-  }
-  return v;
+  return mget('flows',()=>{ const f=new Map();
+    for(const t of S.tx){
+      if(t.acc) f.set(t.acc,(f.get(t.acc)||0)+((t.type==='in'||t.type==='rin')?t.amount:-t.amount));
+      if(t.type==='tr' && t.to) f.set(t.to,(f.get(t.to)||0)+t.amount);
+    }
+    return f; }).get(id)||0;
 }
 function accBal(a){ const f=accFlow(a.id); return a.type==='cre' ? (a.start||0)-f : (a.start||0)+f; }
 function startFor(type,id,shown){ const f=accFlow(id); return type==='cre' ? shown+f : shown-f; }
@@ -749,7 +800,7 @@ function vMovs(){
 function fillTx(){
   const el=$('#txlist'); if(!el) return;
   const q=ui.q.trim().toLowerCase();
-  let list=S.tx.filter(t=>t.date.startsWith(ui.month));
+  let list=txOfMonth(ui.month).slice();
   if(ui.filter==='in') list=list.filter(t=>t.type==='in'||t.type==='rin');
   else if(ui.filter==='imp') list=list.filter(t=>t.mood==='imp');
   else if(ui.filter!=='all') list=list.filter(t=>isOut(t)&&t.cat===ui.filter);
@@ -1520,14 +1571,31 @@ const Sync = {
     const r=await this.api('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&pageSize=100&fields=files(id,name,modifiedTime,size)&q='+encodeURIComponent(q));
     return (await r.json()).files||[];
   },
-  async read(id){ const r=await this.api('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media'); const j=await r.json(); return j.data||j; },
+  async read(id){
+    const r=await this.api('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media');
+    const buf=new Uint8Array(await r.arrayBuffer());
+    let txt;
+    if(buf[0]===0x1f && buf[1]===0x8b) txt=await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    else txt=new TextDecoder().decode(buf);
+    const j=JSON.parse(txt); return j.data||j;
+  },
+  // Comprime el respaldo (unas 10-15 veces más liviano). Si el celular no puede, lo sube normal.
+  async pack(str){
+    try{ if(typeof CompressionStream!=='undefined'){ const gz=await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer(); return new Blob([gz],{type:'application/gzip'}); } }catch(e){}
+    return new Blob([str],{type:'application/json'});
+  },
   async create(name,body,parents=['appDataFolder']){
     const b='mk'+uid(), meta=JSON.stringify(parents?{name,parents}:{name,mimeType:'application/json'});
-    const payload=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${b}--`;
-    const r=await this.api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:payload});
-    return (await r.json()).id;
+    const type=(body&&body.type)||'application/json';
+    const payload=new Blob([`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${b}\r\nContent-Type: ${type}\r\n\r\n`, body, `\r\n--${b}--`]);
+    const r=await this.api('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:payload});
+    const j=await r.json(); this._mod=j.modifiedTime||null; return j.id;
   },
-  async update(id,body){ await this.api('https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body}); },
+  async update(id,body){
+    const type=(body&&body.type)||'application/json';
+    const r=await this.api('https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media&fields=id,modifiedTime',{method:'PATCH',headers:{'Content-Type':type},body});
+    try{ const j=await r.json(); return j.modifiedTime||null; }catch(e){ return null; }
+  },
   async share(id,email,name){
     await this.api('https://www.googleapis.com/drive/v3/files/'+id+'/permissions?sendNotificationEmail=true&emailMessage='+encodeURIComponent('Te invito a nuestro espacio "'+name+'" en Mi Kakeibo. Abre la app, ve a Más › Espacios compartidos › Unirme a uno.'),
       {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'writer',type:'user',emailAddress:email})});
@@ -1573,21 +1641,25 @@ const Sync = {
     try{
       if(!this.st.email) await this.whoami();
       const files=(await this.list(`name='${MAIN_FILE}'`)).sort((a,b)=>a.modifiedTime<b.modifiedTime?1:-1);
-      const before=JSON.stringify(S);
-      let merged=S;
-      for(const f of files) merged=mergeData(merged, await this.read(f.id));
-      const fromRemote=JSON.stringify(merged)!==before;
-      S=merged; prevMap=buildMap(S); persist();
-      const body=this.body(S);
-      if(files.length){ await this.update(files[0].id, body); for(const f of files.slice(1)) await this.remove(f.id); }
-      else await this.create(MAIN_FILE, body);
+      // Si el archivo de Drive es el mismo que subimos la última vez, no hace falta bajarlo
+      const same=files.length===1 && this.st.remoteMod && files[0].modifiedTime===this.st.remoteMod;
+      let fromRemote=false;
+      if(!same && files.length){
+        const before=JSON.stringify(S); let merged=S;
+        for(const f of files) merged=mergeData(merged, await this.read(f.id));
+        fromRemote=JSON.stringify(merged)!==before;
+        S=merged; prevMap=buildMap(S); persist();
+      }
+      const body=await this.pack(this.body(S));
+      if(files.length){ this.st.remoteMod=await this.update(files[0].id, body); for(const f of files.slice(1)) await this.remove(f.id); }
+      else { await this.create(MAIN_FILE, body); this.st.remoteMod=this._mod; }
       await this.weekly(body);
       let spCh=false;
       for(const sp of Spaces.list()) spCh=(await this.syncSpace(sp))||spCh;
       const raced=(this.gen||0)!==g0; // hubo cambios mientras subía: se vuelve a subir
       this.st.dirty=raced; this.st.lastSync=Date.now(); this.err='';
       if(raced){ Spaces.list().forEach(x=>x.dirty=true); Spaces.saveList(); setTimeout(()=>this.auto(),1500); }
-      S.settings.lastBackup=todayStr(); persist();
+      S.settings.lastBackup=todayStr(); persist(new Set());
       if(fromRemote||spCh) softRender();
       if(manual) toast('☁️ Respaldado en tu Google Drive');
     }catch(e){
@@ -1619,7 +1691,8 @@ const Sync = {
       for(const [,o] of recordsOf(S)) o.u=now; // esta copia pasa a ser la más reciente
       prevMap=buildMap(S); persist();
       const files=await this.list(`name='${MAIN_FILE}'`);
-      if(files.length) await this.update(files[0].id, this.body(S)); else await this.create(MAIN_FILE, this.body(S));
+      const packed=await this.pack(this.body(S));
+      if(files.length) this.st.remoteMod=await this.update(files[0].id, packed); else { await this.create(MAIN_FILE, packed); this.st.remoteMod=this._mod; }
       this.st.dirty=false; this.st.lastSync=Date.now(); this.save();
       closeModal(); ui.stack=[]; ui.tab='inicio'; render(); toast('✅ Copia restaurada');
     }catch(e){ toast('⚠️ No se pudo restaurar'); }
