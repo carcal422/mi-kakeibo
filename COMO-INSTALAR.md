@@ -5,9 +5,9 @@ Tiempo total: unos 30 minutos, una sola vez. Las partes A a D las haces **tú de
 ---
 
 ## A. Descargar y descomprimir (PC)
-1. En Claude, toca el archivo **mi-kakeibo-version-4.zip** y descárgalo. Queda en tu carpeta **Descargas**.
+1. En Claude, toca el archivo **mi-kakeibo-version-5.zip** y descárgalo. Queda en tu carpeta **Descargas**.
 2. En Windows: clic derecho sobre el .zip → **Extraer todo…** → **Extraer**.
-3. Se abre la carpeta **mi-kakeibo-version-4**. Adentro debe haber:
+3. Se abre la carpeta **mi-kakeibo-version-5**. Adentro debe haber:
    `index.html`, `config.js`, `manifest.json`, `sw.js`, `COMO-INSTALAR.md` y la carpeta `icons`.
    No cambies nombres ni muevas nada de lugar.
 
@@ -15,7 +15,7 @@ Tiempo total: unos 30 minutos, una sola vez. Las partes A a D las haces **tú de
 1. Entra a **github.com** e inicia sesión (o crea una cuenta gratis).
 2. Arriba a la derecha, **+ → New repository**. Nombre: `mi-kakeibo`, opción **Public**, y toca **Create repository**.
 3. Toca el enlace **uploading an existing file**.
-4. Abre la carpeta **mi-kakeibo-version-4**, selecciona **todo lo de adentro** (Ctrl+A), incluida la carpeta `icons`, y arrástralo a la página de GitHub.
+4. Abre la carpeta **mi-kakeibo-version-5**, selecciona **todo lo de adentro** (Ctrl+A), incluida la carpeta `icons`, y arrástralo a la página de GitHub.
    Arrastra lo que está **dentro** de la carpeta, no la carpeta completa.
 5. Abajo toca **Commit changes**.
 6. Ve a **Settings → Pages**. En *Branch* elige `main` y `/ (root)` y toca **Save**.
@@ -75,4 +75,10 @@ Usa la app **siempre desde el ícono**, nunca desde una pestaña de Safari.
 - **Error de Google al conectar (redirect_uri_mismatch):** el enlace del paso C.6 debe ser **idéntico** a tu enlace de GitHub, con la `/` final.
 - **"Acceso bloqueado" o no deja entrar:** falta agregar ese Gmail en **Usuarios de prueba** (C.5).
 - **No aparecen los cambios del otro:** los dos deben tener Drive conectado (✅ arriba en Inicio). Toca el ícono de la nube → **Respaldar ahora**.
-- **Para actualizar la app más adelante:** sube los archivos nuevos a GitHub y, en `sw.js`, cambia `mi-kakeibo-v4` por `mi-kakeibo-v5`.
+- **Elegí la cuenta de Google equivocada:** en **Más → Ajustes → Cambiar de cuenta**.
+
+## Actualizar la app más adelante
+1. En GitHub, dentro del repositorio, toca **Add file → Upload files** y arrastra los archivos nuevos (`index.html`, `sw.js`…).
+2. **No subas `config.js`** si ya tiene tus 3 datos de Google, porque lo reemplazarías por uno vacío. Si lo subes por error, vuelve a pegar los datos.
+3. Toca **Commit changes**. En unos 10 minutos la versión nueva está publicada.
+4. En los celulares no hay que hacer nada: la próxima vez que abran la app con internet, carga la versión nueva. Los datos se conservan.

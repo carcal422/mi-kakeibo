@@ -111,6 +111,8 @@ table.t th{color:var(--mut);font-weight:600;font-size:.75rem}
 .goal .bar{height:12px}
 svg text{fill:var(--mut);font-size:9px}
 .q{font-weight:700;margin-top:14px}
+.ovlx{opacity:0;animation:ovlIn .3s 4s forwards}@keyframes ovlIn{to{opacity:1}}
+.upbar{position:fixed;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));z-index:45;background:var(--acc);color:var(--accT);border-radius:14px;padding:10px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.3)}
 .cards{display:flex;gap:10px;overflow-x:auto;padding:2px 14px 10px;margin:0 -14px;scrollbar-width:none}
 .cards::-webkit-scrollbar{display:none}
 .acard{flex:none;width:205px;height:122px;border-radius:18px;padding:12px 14px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.18);overflow:hidden}
@@ -141,7 +143,7 @@ svg text{fill:var(--mut);font-size:9px}
    Todo se guarda solo en este dispositivo (localStorage).
    ========================================================= */
 const KEY = 'mikakeibo.v1';
-const APP_VERSION = '4.0.0';
+const APP_VERSION = '5.0.0';
 const TOUR=[
   {e:'👋',t:'Bienvenido a Mi Kakeibo',p:'Es el método japonés para controlar la plata: anotar cada gasto, darte cuenta en qué se va y decidir mejor. Sin anuncios y funciona sin internet.'},
   {e:'🗓️',t:'1. Planea el mes',p:'Al empezar cada mes escribe lo que te entra, tus gastos fijos (arriendo, servicios…) y cuánto quieres ahorrar. Lo que sobra es lo que puedes gastar.'},
@@ -1301,13 +1303,15 @@ const A = {
   wipe:()=>{
     ask({title:'¿Borrar todo?', text:'Se eliminan todos tus meses, movimientos, metas y deseos de este celular y se desconecta Drive (la copia en Drive no se borra). Escribe BORRAR para confirmar.', ok:'Borrar todo', danger:true},()=>{
       if($('#pIn').value.trim().toUpperCase()!=='BORRAR'){ toast('Escribe BORRAR para confirmar'); return; }
-      S=defState(); prevMap=buildMap(S); persist(); if(Sync.on()) Sync.disconnect(); closeModal(); ui.stack=[]; ui.tab='inicio'; render(); toast('Datos borrados de este celular');
+      S=defState(); prevMap=buildMap(S); persist(); for(const sp of Spaces.list().slice()) Spaces.remove(sp.id); ui.space=null; if(Sync.on()) Sync.disconnect(); closeModal(); ui.stack=[]; ui.tab='inicio'; render(); toast('Datos borrados de este celular');
     });
   },
   cloud:()=>go('ajustes'),
   driveOn:()=>Sync.login(false),
   driveSync:()=>Sync.run(true),
   driveSnaps:()=>Sync.snaps(),
+  ovlCancel:()=>{ hideOverlay(); if(Sync.st.state){ Sync.st.state=null; Sync.save(); } try{ window.stop(); }catch(e){} },
+  driveSwitch:()=>{ if(!confirm('¿Cambiar de cuenta de Google? Tus datos de este celular se quedan y se respaldarán en la cuenta nueva.')) return; Sync.disconnect(); Sync.login(false); },
   driveOff:()=>{ if(!confirm('¿Desconectar Google Drive? Tu copia en Drive no se borra; podrás volver a conectarla.')) return; Sync.disconnect(); render(); toast('Drive desconectado'); },
   restoreSnap:d=>{ if(!confirm('¿Reemplazar tus datos actuales por la copia del '+d.n+'? Lo que anotaste después se perderá.')) return; Sync.restoreSnap(d.id); },
   tourNext:()=>{ ui.modal.data.i=(ui.modal.data.i||0)+1; renderModal(); },
@@ -1434,8 +1438,17 @@ function redirectUri(){ return location.origin+location.pathname.replace(/index\
 function mondayOf(ds){ const d=parseD(ds); d.setDate(d.getDate()-((d.getDay()+6)%7)); return dstr(d); }
 function showOverlay(msg){
   let el=$('#ovl'); if(!el){ el=document.createElement('div'); el.id='ovl'; el.className='lock'; document.body.appendChild(el); }
-  el.innerHTML=`<div style="font-size:2.6rem">☁️</div><b>${esc(msg)}</b><div class="mut sm">Un momento…</div>`;
+  el.innerHTML=`<div style="font-size:2.6rem">☁️</div><b>${esc(msg)}</b><div class="mut sm">Un momento…</div><button class="btn ghost sm ovlx" data-a="ovlCancel">Cancelar</button>`;
 }
+function hideOverlay(){ const el=$('#ovl'); if(el) el.remove(); }
+// Si la persona vuelve atrás desde Google (o cancela), la app no puede quedarse tapada.
+addEventListener('pageshow',e=>{
+  if(!e.persisted) return;
+  hideOverlay();
+  if(Sync.st.state){ Sync.st.state=null; Sync.save(); }
+  if(!$('#app').innerHTML){ history.replaceState({k:'root'},''); render(); if(S.settings.pin && !locked) showLock(); }
+  else { ui.modal=null; renderModal(); render(); }
+});
 
 const Sync = {
   st:(()=>{ try{ return JSON.parse(localStorage.getItem(SYNC_KEY))||{}; }catch(e){ return {}; } })(),
@@ -1455,6 +1468,7 @@ const Sync = {
   },
   changed(){
     if(!this.on()) return;
+    this.gen=(this.gen||0)+1;
     this.st.dirty=true; this.save(); updateCloud();
     clearTimeout(this.timer); this.timer=setTimeout(()=>this.auto(),4000);
   },
@@ -1466,10 +1480,11 @@ const Sync = {
     if(!navigator.onLine){ toast('Necesitas internet para conectar con Drive'); return; }
     const state=uid(); this.st.state=state; if(silent) this.st.lastSilent=Date.now(); this.save();
     const p=new URLSearchParams({client_id:CLIENT_ID, redirect_uri:redirectUri(), response_type:'token', scope:SCOPES, include_granted_scopes:'true', state});
-    if(silent) p.set('prompt','none');
-    if(this.st.email) p.set('login_hint',this.st.email);
+    if(silent){ p.set('prompt','none'); if(this.st.email) p.set('login_hint',this.st.email); }
+    else { p.set('prompt','select_account'); if(this.st.email && this.st.needsLogin) p.set('login_hint',this.st.email); }
     showOverlay(silent?'Respaldando en Google Drive':'Abriendo Google');
-    location.href='https://accounts.google.com/o/oauth2/v2/auth?'+p.toString();
+    // replace: así el botón "atrás" no deja la app a medias
+    setTimeout(()=>location.replace('https://accounts.google.com/o/oauth2/v2/auth?'+p.toString()),60);
   },
   handleRedirect(){
     if(!/[#&]state=/.test(location.hash)) return null;
@@ -1554,7 +1569,7 @@ const Sync = {
     if(this.busy) return;
     if(!navigator.onLine){ if(manual) toast('📴 Sin internet. Se respalda solo cuando vuelva la conexión.'); updateCloud(); return; }
     if(!this.tokenOk()){ if(manual) this.login(!this.st.needsLogin && !!this.st.email); return; }
-    this.busy=true; updateCloud();
+    this.busy=true; updateCloud(); const g0=this.gen||0;
     try{
       if(!this.st.email) await this.whoami();
       const files=(await this.list(`name='${MAIN_FILE}'`)).sort((a,b)=>a.modifiedTime<b.modifiedTime?1:-1);
@@ -1569,7 +1584,9 @@ const Sync = {
       await this.weekly(body);
       let spCh=false;
       for(const sp of Spaces.list()) spCh=(await this.syncSpace(sp))||spCh;
-      this.st.dirty=false; this.st.lastSync=Date.now(); this.err='';
+      const raced=(this.gen||0)!==g0; // hubo cambios mientras subía: se vuelve a subir
+      this.st.dirty=raced; this.st.lastSync=Date.now(); this.err='';
+      if(raced){ Spaces.list().forEach(x=>x.dirty=true); Spaces.saveList(); setTimeout(()=>this.auto(),1500); }
       S.settings.lastBackup=todayStr(); persist();
       if(fromRemote||spCh) softRender();
       if(manual) toast('☁️ Respaldado en tu Google Drive');
@@ -1667,7 +1684,7 @@ function vDrive(){
     <div class="row"><button class="btn sm" data-a="driveSync">Respaldar ahora</button><button class="btn sm ghost" data-a="driveSnaps">Copias semanales</button></div>
     <label class="sm" style="margin-top:12px;display:flex;align-items:center;gap:10px;cursor:pointer"><input type="checkbox" data-ch="autoDrive" ${S.settings.autoDrive!==false?'checked':''} style="width:20px;height:20px;accent-color:var(--acc)">
       Respaldar automáticamente al abrir la app <span class="xs mut">(pasa un segundo por Google)</span></label>
-    <button class="link sm" data-a="driveOff" style="margin-top:8px;color:var(--bad)">Desconectar Drive</button></div>`;
+    <div class="row" style="margin-top:8px;gap:16px"><button class="link sm" data-a="driveSwitch">Cambiar de cuenta</button><button class="link sm" data-a="driveOff" style="color:var(--bad)">Desconectar Drive</button></div></div>`;
 }
 
 /* ---------- arranque ---------- */
@@ -1682,7 +1699,18 @@ if(!redirecting){
 }
 // Si cambia el día con la app abierta, refresca
 let lastDay=todayStr(); setInterval(()=>{ if(todayStr()!==lastDay){ lastDay=todayStr(); if(!ui.modal) render(); } },60000);
-if('serviceWorker' in navigator && location.protocol!=='file:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator && location.protocol!=='file:'){
+  const hadSW=!!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') reg.update().catch(()=>{}); });
+  }).catch(()=>{});
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(!hadSW || $('.upbar')) return;
+    const b=document.createElement('div'); b.className='upbar';
+    b.innerHTML='<span class="grow sm"><b>✨ Hay una versión nueva</b><br>Tus datos se conservan.</span><button class="btn sm" style="background:var(--accT);color:var(--acc)" onclick="location.reload()">Actualizar</button>';
+    document.body.appendChild(b);
+  });
+}
 navigator.storage?.persist?.().catch(()=>{});
 </script>
 </body>
