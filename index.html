@@ -143,7 +143,7 @@ svg text{fill:var(--mut);font-size:9px}
    Todo se guarda solo en este dispositivo (localStorage).
    ========================================================= */
 const KEY = 'mikakeibo.v1';
-const APP_VERSION = '8.3.0';
+const APP_VERSION = '8.4.0';
 const TOUR=[
   {e:'👋',t:'Bienvenido a Mi Kakeibo',p:'Es el método japonés para controlar la plata: anotar cada gasto, darte cuenta en qué se va y decidir mejor. Sin anuncios y funciona sin internet.'},
   {e:'🗓️',t:'1. Planea',p:'Escribe tus gastos fijos (arriendo, servicios…) y cuánto quieres ahorrar. ¿Te pagan cada 15 días? Activa <b>Quincenal</b> en Más › Ajustes y anota cada pago apenas llegue.'},
@@ -181,7 +181,7 @@ const todayStr = () => dstr(new Date());
 const ymOf = ds => ds.slice(0,7);
 const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const sum = (arr, k='amount') => arr.reduce((a,x)=>a+(Number(x[k])||0),0);
-const fmt = n => (n<0?'-':'')+'$\u00a0'+Math.round(Math.abs(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
+const fmt = n => (Math.round(n)<0?'-':'')+'$\u00a0'+Math.round(Math.abs(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.');
 const fmtIn = n => n ? Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.') : '';
 const parseAmt = v => Number(String(v||'').replace(/\D/g,''))||0;
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1068,6 +1068,7 @@ function vMovs(){
   const chip=(id,l)=>`<button class="chip ${f===id?'on':''}" data-a="filter" data-f="${id}">${l}</button>`;
   return `<input class="f" id="q" type="search" placeholder="🔎 Buscar por nota o subcategoría" value="${esc(ui.q)}" style="margin-bottom:10px">
     <div class="chips scroll" style="margin-bottom:6px">${chip('all','Todos')}${CATS.map(c=>chip(c.id,c.emoji+' '+c.name)).join('')}${chip('in','💰 Ingresos')}${chip('imp','⚡ Impulsos')}</div>
+    ${activeAccs().length?`<div class="chips scroll" style="margin-bottom:6px"><button class="chip ${!ui.accF?'on':''}" data-a="accF" data-v="">💳 Todas las cuentas</button>${activeAccs().map(a=>`<button class="chip ${ui.accF===a.id?'on':''}" data-a="accF" data-v="${a.id}">${a.type==='efe'?'💵 ':''}${esc(a.name)}</button>`).join('')}<button class="chip ${ui.accF==='__none'?'on':''}" data-a="accF" data-v="__none">Sin cuenta</button></div>`:''}
     <div id="txlist"></div>`;
 }
 function fillTx(){
@@ -1077,6 +1078,7 @@ function fillTx(){
   if(ui.filter==='in') list=list.filter(t=>t.type==='in'||t.type==='rin'||t.type==='pay');
   else if(ui.filter==='imp') list=list.filter(t=>t.mood==='imp');
   else if(ui.filter!=='all') list=list.filter(t=>isOut(t)&&t.cat===ui.filter);
+  if(ui.accF==='__none') list=list.filter(t=>!t.acc&&t.type!=='tr'); else if(ui.accF) list=list.filter(t=>t.acc===ui.accF||t.to===ui.accF);
   if(q) list=list.filter(t=>((t.note||'')+' '+(t.sub||'')+' '+catById(t.cat).name).toLowerCase().includes(q));
   list=list.filter(t=>!(t.type==='sob'&&!t.amount)); list.sort(sortTx);
   if(!list.length){ el.innerHTML=`<div class="card empty"><i>🫙</i>No hay movimientos con ese filtro en ${monthName(ui.month)}.</div>`; return; }
@@ -1335,7 +1337,8 @@ function vAyuda(){
     <p class="sm"><b>4. Mira "Hoy puedes gastar"</b> en Inicio: te dice cuánto te alcanza por día para llegar bien a fin de mes.</p>
     <p class="sm"><b>5. Al final del mes</b>, haz la reflexión con las 4 preguntas y cierra el mes. Lo que te sobró lo puedes mandar a una meta.</p></div>
   <div class="card"><h3>💵 Si te pagan quincenal</h3><p class="sm">Actívalo en <b>Más › Ajustes › ¿Cómo te pagan?</b>. La app espera tus pagos el 15 y el último día del mes (si cae fin de semana o festivo, el día hábil anterior). Cada quincena va desde que llega la plata hasta el día antes del siguiente pago. Cuando te pague la empresa, toca <b>Anotar mi pago</b>, pon el total y, si quieres, cuánto fue por festivos, nocturnos o fines de semana. El ahorro se aparta solo (en % o monto fijo) y "Hoy puedes gastar" se calcula hasta tu próximo pago.</p></div>
-  <div class="card"><h3>💳 Cuentas y tarjetas</h3><p class="sm">En <b>Más › Cuentas y tarjetas</b> agrega cada banco, billetera o el efectivo con su saldo de hoy. En las tarjetas de crédito pon el cupo, lo que debes y el día de pago. Al anotar un gasto toca con qué pagaste. Para pasar plata de una cuenta a otra o pagar la tarjeta usa <b>Mover plata</b>: no cuenta como gasto. Si un saldo no cuadra con el del banco, entra a la cuenta y toca <b>Corregir saldo</b>.</p></div>
+  <div class="card"><h3>💵 Efectivo y sobrantes</h3><p class="sm">Para sacar plata del cajero toca <b>🏧 Sacar efectivo</b>: no cuenta como gasto (solo el cobro del cajero, si lo hubo). Luego, al pagar en efectivo, elige <b>💵 Efectivo</b>. En modo quincenal, lo que te sobra de una quincena pasa sola a la siguiente y puedes ahorrarlo todo o una parte. Si te pasaste, también se descuenta.</p></div>
+  <div class="card"><h3>💳 Cuentas y tarjetas</h3><p class="sm">En <b>Más › Cuentas y tarjetas</b> agrega cada banco, billetera o el efectivo con su saldo de hoy. En las tarjetas de crédito pon el cupo, lo que debes y el día de pago. Al anotar un gasto toca con qué pagaste. Para pasar plata de una cuenta a otra o pagar la tarjeta usa <b>Mover plata</b>: no cuenta como gasto. En Cuentas eliges tu <b>cuenta principal</b> y para qué usas cada una (tus gastos o la casa). Si un saldo no cuadra con el del banco, entra a la cuenta y toca <b>Corregir saldo</b>.</p></div>
   <div class="card"><h3>👥 Espacio compartido</h3><p class="sm">Uno crea el espacio en <b>Más › Espacios compartidos</b> y escribe el Gmail del otro. El otro toca <b>Unirme a uno</b> y elige el archivo. Arriba en Inicio cambian entre 👤 Personal y 🏠 Casa. Anoten los <b>aportes</b> al fondo y los <b>gastos</b>, diciendo si salieron del fondo o del bolsillo de alguien. Los cambios le llegan al otro en máximo un minuto con la app abierta.</p></div>
   <div class="card"><h3>Lo que tiene de más</h3><p class="sm">⚡ Registro emocional de cada gasto · 📅 Avisos de pagos fijos · ⏳ Lista de deseos con espera · 🎯 Metas con plan mensual · 📊 Resumen semanal, diario y comparación con el mes anterior · 💳 Cuentas y tarjetas con saldo y cupo · 👥 Espacios compartidos (ej: la casa) · ⭐ Atajos para repetir gastos frecuentes · 🔒 PIN · 💾 Respaldos y exportación a Excel.</p></div>
   <div class="card"><h3>Privacidad</h3><p class="sm">Tus datos se guardan en tu celular. Si conectas Google Drive, la copia va a una carpeta oculta de <b>tu propio</b> Drive, sin pasar por ningún servidor. No hay anuncios ni cuentas nuevas. Cada persona usa la app en su celular con su propio Google, y los datos de una no se mezclan con los de la otra.</p></div>`;
@@ -1367,7 +1370,8 @@ function mTx(){
   h+=`<input class="f money" id="fAmt" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.amount)}" autocomplete="off" style="margin-top:10px">`;
   if(isTr){
     if(accs.length<2) h+=`<p class="sm mut" style="margin-top:10px">Agrega al menos dos cuentas en <b>Más › Cuentas y tarjetas</b> para mover plata entre ellas.</p>`;
-    h+=chips('acc','Sale de',accs)+chips('to','Llega a',accs.filter(a=>a.id!==f.acc));
+    const toE=(accById(f.to)||{}).type==='efe';
+    h+=chips('acc','Sale de',toE?accs.filter(a=>a.type!=='efe'):accs)+chips('to','Llega a',accs.filter(a=>a.id!==f.acc));
     if(toCash && !f.id) h+=`<label class="l">¿Te cobraron por sacarlo? <span class="mut">(opcional)</span></label><input class="f" id="fFee" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.fee)}">
       <p class="xs mut">Sacar efectivo no es un gasto: la plata solo pasa de tu cuenta a tu bolsillo. El cobro del cajero sí cuenta como gasto (Extras › Comisiones).</p>`;
     const to=accById(f.to); if(to&&to.type==='cre') h+=`<p class="xs mut">💳 Pago de tarjeta: baja tu deuda y no cuenta como gasto (las compras ya se contaron).</p>`;
@@ -1460,11 +1464,12 @@ const A = {
   add:()=>ui.space?openSpAdd():openAdd(),
   edit:d=>{ const t=S.tx.find(x=>x.id===d.id); if(t&&t.type==='sp'){ const sp=Spaces.list().find(s=>Spaces.data(s.id).items.some(i=>i.id===t.spaceRef)); if(sp){ ui.space=sp.id; ui.stack=[]; ui.tab='inicio'; render(); A.spEdit({id:t.spaceRef}); } else toast('Este gasto es de un espacio compartido que ya no está en este celular'); return; } if(t&&t.type==='pay'){ ui.pform=JSON.parse(JSON.stringify(t)); ui.pform.ext=ui.pform.ext||{}; openModal('pay'); return; } if(t){ ui.form=Object.assign({},t); openModal('tx'); } },
   catMovs:d=>{ ui.filter=d.c; go('movs'); },
+  accF:d=>{ ui.accF=d.v||''; render(); },
   filter:d=>{ ui.filter=d.f; render(); },
   closeModal:()=>closeModal(),
   bgClose:(d,el,e)=>{ if(e.target===el) closeModal(); },
-  fType:d=>{ readForm(); const f=ui.form; f.type=d.v; if(d.v==='tr'){ if(!f.acc||(accById(f.acc)||{}).type==='cre'){ const a=activeAccs().find(x=>x.type!=='cre'); f.acc=a?a.id:''; } } else if(d.v==='in' && (accById(f.acc)||{}).type==='cre') f.acc=''; renderModal(); },
-  fAcc:d=>{ readForm(); const f=ui.form; f[d.k]=f[d.k]===d.v?'':d.v; if(d.k==='acc'&&f.to===f.acc) f.to=''; renderModal(); },
+  fType:d=>{ readForm(); const f=ui.form; if(f.type!==d.v && /^(Retiro de efectivo|Pago .+)$/.test(f.note||'') && !f.id) f.note=''; f.type=d.v; if(d.v==='tr'){ if(!f.acc||(accById(f.acc)||{}).type==='cre'){ const a=activeAccs().find(x=>x.type!=='cre'); f.acc=a?a.id:''; } } else if(d.v==='in' && (accById(f.acc)||{}).type==='cre') f.acc=''; renderModal(); },
+  fAcc:d=>{ readForm(); const f=ui.form; f[d.k]=f[d.k]===d.v?'':d.v; if(d.k==='acc'&&f.to===f.acc) f.to=''; if(d.k==='to'&&f.to&&f.to===f.acc) f.acc=''; if(d.k==='to'&&(accById(f.to)||{}).type==='efe'&&(accById(f.acc)||{}).type==='efe') f.acc=''; renderModal(); },
   fCat:d=>{ readForm(); if(ui.form.cat!==d.v){ ui.form.cat=d.v; ui.form.sub=''; } renderModal(); },
   fSub:d=>{ readForm(); ui.form.sub=ui.form.sub===d.v?'':d.v; renderModal(); },
   fMood:d=>{ readForm(); ui.form.mood=ui.form.mood===d.v?'':d.v; renderModal(); },
@@ -1487,6 +1492,10 @@ const A = {
     save(); const ym=ymOf(rec.date); closeModal();
     if(ym!==ui.month) ui.month=ym;
     render();
+    const src=accById(rec.acc);
+    if(src && (isOut(rec)||rec.type==='tr'||rec.type==='fix') && !f.id){ const b=accBal(src);
+      if(src.type!=='cre' && b<0){ setTimeout(()=>toast('⚠️ '+src.name+' quedó en '+fmt(b)+'. Revisa el saldo o corrígelo en Cuentas.'),2600); }
+      else if(src.type==='cre' && src.limit && b>src.limit){ setTimeout(()=>toast('⚠️ Te pasaste del cupo de '+src.name),2600); } }
     if(rec.type==='tr') toast((accById(rec.to)||{}).type==='efe'?'💵 Listo: '+fmt(rec.amount)+' en efectivo'+(f.fee?' · cobro '+fmt(f.fee):''):'↔️ Movimiento guardado');
     else if(isOut(rec)){ const st=stats(ym), b=Number(st.m.budgets[rec.cat])||0, g=st.byCat[rec.cat];
       if(b && g>b) toast(`⚠️ Te pasaste del tope de ${catById(rec.cat).name}`);
@@ -1529,7 +1538,12 @@ const A = {
   adjAcc:d=>{ const a=accById(d.id); if(!a) return;
     ask({title:a.type==='cre'?'¿Cuánto debes hoy en '+a.name+'?':'¿Cuánto tienes hoy en '+a.name+'?', text:'Mira el saldo en la app del banco y escríbelo. La diferencia se ajusta sin contarla como gasto.', money:true, value:fmtIn(Math.max(0,accBal(a))), ok:'Corregir'},
       ()=>{ const v=parseAmt($('#pIn').value); a.start=startFor(a.type,a.id,v); save(); closeModal(); render(); toast('✅ Saldo corregido'); }); },
-  delAcc:d=>{ const a=accById(d.id); if(!a||!confirm('¿Eliminar '+a.name+'? Sus movimientos se conservan, pero quedan sin cuenta.')) return; S.accounts=S.accounts.filter(x=>x.id!==a.id); save(); back(); toast('Cuenta eliminada'); },
+  delAcc:d=>{ const a=accById(d.id); if(!a||!confirm('¿Eliminar '+a.name+'? Sus movimientos se conservan y quedan "sin cuenta" (los puedes pasar a otra cuenta).')) return;
+    S.accounts=S.accounts.filter(x=>x.id!==a.id);
+    S.tx=S.tx.map(t=>t.acc===a.id||t.to===a.id?Object.assign({},t,t.acc===a.id?{acc:''}:{},t.to===a.id?{to:''}:{}):t);
+    if(S.settings.mainAcc===a.id) S.settings.mainAcc='__last';
+    try{ if(localStorage.getItem('mikakeibo.lastAcc')===a.id) localStorage.removeItem('mikakeibo.lastAcc'); }catch(e){}
+    save(); back(); toast('Cuenta eliminada'); },
   payCard:d=>{ const a=accById(d.id); if(!a) return; openAdd({type:'tr', to:a.id, amount:Math.max(0,accBal(a)), note:'Pago '+a.name}); },
   move:d=>openAdd({type:'tr', acc:d.from||''}),
   withdraw:d=>{ const c=ensureCash(); let from=d.from||''; if(!from){ const da=accById(defaultAcc()); from=(da&&da.type!=='efe'&&da.type!=='cre')?da.id:((activeAccs().find(a=>a.type!=='efe'&&a.type!=='cre'))||{}).id||''; }
