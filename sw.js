@@ -1,7 +1,7 @@
 // Mi Kakeibo · service worker
 // Con internet: siempre trae la versión más nueva de la app (y la guarda).
 // Sin internet (o si tarda más de 3 s): usa la copia guardada en el celular.
-const CACHE = 'mi-kakeibo-v11';
+const CACHE = 'mi-kakeibo-v12';
 const FILES = ['./', './index.html', './config.js', './manifest.json', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png'];
 
 self.addEventListener('install', e => {
