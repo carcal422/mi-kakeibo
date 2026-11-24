@@ -147,7 +147,7 @@ svg text{fill:var(--mut);font-size:9px}
    Todo se guarda solo en este dispositivo (localStorage).
    ========================================================= */
 const KEY = 'mikakeibo.v1';
-const APP_VERSION = '8.6.0';
+const APP_VERSION = '8.7.0';
 const TOUR=[
   {e:'👋',t:'Bienvenido a Mi Kakeibo',p:'Es el método japonés para controlar la plata: anotar cada gasto, darte cuenta en qué se va y decidir mejor. Sin anuncios y funciona sin internet.'},
   {e:'🗓️',t:'1. Planea',p:'Escribe tus gastos fijos (arriendo, servicios…) y cuánto quieres ahorrar. ¿Te pagan cada 15 días? Activa <b>Quincenal</b> en Más › Ajustes y anota cada pago apenas llegue.'},
@@ -222,7 +222,7 @@ function migrate(s){
   s.settings=Object.assign(d.settings, s.settings||{});
   s.settings.subs=s.settings.subs||{};
   for(const c of CATS) if(!Array.isArray(s.settings.subs[c.id])) s.settings.subs[c.id]=[...DEFAULT_SUBS[c.id]];
-  s.months=s.months||{}; s.tx=Array.isArray(s.tx)?s.tx:[]; s.goals=s.goals||[]; s.wishes=s.wishes||[]; s.del=(s.del&&typeof s.del==='object')?s.del:{}; s.accounts=Array.isArray(s.accounts)?s.accounts:[];
+  s.months=s.months||{}; s.tx=Array.isArray(s.tx)?s.tx:[]; s.goals=s.goals||[]; s.wishes=s.wishes||[]; s.del=(s.del&&typeof s.del==='object')?s.del:{}; s.accounts=Array.isArray(s.accounts)?s.accounts:[]; for(const t of s.tx) if(t.gmf===undefined) t.gmf=0;
   s.v=1; return s;
 }
 /* Almacenamiento: los movimientos se guardan por año (mikakeibo.v1.tx.2026…) y el resto en
@@ -296,7 +296,7 @@ function persist(years){
     }catch(e){ if(legacy!==null){ try{ localStorage.setItem(KEY,legacy); }catch(_){} } throw e; }
   }catch(e){ toast('⚠️ No se pudo guardar: '+e.message+'. Haz un respaldo en Más › Ajustes.'); }
 }
-function save(){ const r=stamp(); persist(r.years); if(r.changed && typeof Sync!=='undefined') Sync.changed(); }
+function save(){ for(let i=0;i<S.tx.length;i++){ const t=S.tx[i]; if(t.gmf===undefined) S.tx[i]=Object.assign({},t,{gmf:calcGmf(t)}); } const r=stamp(); persist(r.years); if(r.changed && typeof Sync!=='undefined') Sync.changed(); }
 // Resultados guardados en memoria hasta el próximo cambio (para que las pantallas abran rápido)
 const memo={v:-1,m:null};
 function mget(k,fn){ if(memo.v!==dataVer){ memo.v=dataVer; memo.m=new Map(); } if(!memo.m.has(k)) memo.m.set(k,fn()); return memo.m.get(k); }
@@ -316,11 +316,11 @@ function statsRaw(ym){
   const qp=isQ()?paysOf(ym+'-1').concat(paysOf(ym+'-2')).filter(t=>!t.start):null;
   const ingFix=qp?sum(qp):sum(m.income), ingExtra=sum(extraIn), ing=ingFix+ingExtra;
   const fijos=sum(m.fixed), ahorro=qp?sum(qp,'save')+sum(sobOf(ym+'-1').concat(sobOf(ym+'-2'))):(Number(m.saving)||0);
-  const disp=ing-fijos-ahorro, gastado=sum(gastos);
+  const gmf=sum(tx,'gmf'), disp=ing-fijos-ahorro, gastado=sum(gastos)+gmf;
   const byCat={}; CATS.forEach(c=>byCat[c.id]=0);
-  gastos.forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+t.amount);
+  gastos.forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+t.amount); byCat.ext+=gmf;
   const byMood={nec:0,que:0,imp:0}; gastos.forEach(t=>{ if(t.mood) byMood[t.mood]+=t.amount; });
-  return {m,tx,gastos,ing,ingFix,ingExtra,fijos,ahorro,disp,gastado,restante:disp-gastado,byCat,byMood,ahorroReal:ing-fijos-gastado};
+  return {m,tx,gastos,ing,ingFix,ingExtra,fijos,ahorro,disp,gastado,gmf,restante:disp-gastado,byCat,byMood,ahorroReal:ing-fijos-gastado};
 }
 
 /* =========================================================
@@ -355,15 +355,31 @@ const ATYPES = {deb:{n:'Débito / ahorros', s:'Débito', e:'💳'}, cre:{n:'Cré
 const bankBy = id => BANKS.find(b=>b.id===id) || BANKS[BANKS.length-1];
 const isOut = t => !t.type || t.type==='out';
 const accById = id => id ? S.accounts.find(a=>a.id===id) : null;
-const activeAccs = () => S.accounts.filter(a=>!a.archived);
+const activeAccs = () => S.accounts.filter(a=>!a.archived).map((a,i)=>[a,i]).sort((x,y)=>((x[0].order??1e6+x[1])-(y[0].order??1e6+y[1]))).map(x=>x[0]);
 const accLabel = a => a ? a.name+(a.last4?' ••'+a.last4:'') : '';
 function accFlow(id){
   return mget('flows',()=>{ const f=new Map();
     for(const t of S.tx){
-      if(t.acc) f.set(t.acc,(f.get(t.acc)||0)+((t.type==='in'||t.type==='rin'||t.type==='pay')?t.amount:-t.amount));
+      if(t.acc) f.set(t.acc,(f.get(t.acc)||0)+((t.type==='in'||t.type==='rin'||t.type==='pay')?t.amount:-t.amount)-(t.gmf||0));
       if(t.type==='tr' && t.to) f.set(t.to,(f.get(t.to)||0)+t.amount);
     }
     return f; }).get(id)||0;
+}
+/* 4x1000 (GMF). Se calcula una sola vez, al guardar el movimiento, y queda guardado en t.gmf.
+   Solo aplica desde el día en que configuras la cuenta (a.gmfFrom): no cambia lo que ya tenías. */
+const UVT = {2025:49799, 2026:52374}; // DIAN: Res. 000238 de 2025 para 2026
+const uvtOf = y => UVT[y] || UVT[Math.max(...Object.keys(UVT).map(Number).filter(k=>k<=y))] || UVT[2026];
+const GMF_MODES = {paga:'Paga 4x1000', exenta:'Exenta (la marcada en el banco)', bajo:'Bajo monto (Nequi/DaviPlata con topes)'};
+const isDebit = t => isOut(t) || t.type==='fix' || t.type==='sp' || t.type==='tr';
+function calcGmf(t){
+  if(!t.acc || !isDebit(t)) return 0;
+  const a=accById(t.acc); if(!a || !(a.type==='deb'||a.type==='bil') || !a.gmf || !a.gmfFrom || t.date<a.gmfFrom) return 0;
+  if(t.type==='tr'){ const to=accById(t.to); if(to && to.bank===a.bank && to.type!=='efe') return 0; } // entre tus cuentas del mismo banco no se cobra
+  if(a.gmf==='paga') return Math.round(t.amount*4/1000);
+  const lim=(a.gmf==='bajo'?65:350)*uvtOf(+t.date.slice(0,4)), ym=t.date.slice(0,7);
+  let prev=0; for(const x of S.tx) if(x!==t && x.acc===a.id && isDebit(x) && x.date.slice(0,7)===ym && (x.date<t.date || (x.date===t.date && (x.ts||0)<(t.ts||0)))) prev+=x.amount;
+  const exceso=Math.max(0,prev+t.amount-lim)-Math.max(0,prev-lim);
+  return Math.round(exceso*4/1000);
 }
 function accBal(a){ const f=accFlow(a.id); return a.type==='cre' ? (a.start||0)-f : (a.start||0)+f; }
 function startFor(type,id,shown){ const f=accFlow(id); return type==='cre' ? shown+f : shown-f; }
@@ -401,7 +417,7 @@ function quickActions(a){
 function cardHtml(a,big){
   const b=bankBy(a.bank), bal=accBal(a), fg=b.t||'#fff';
   const body = a.type==='cre'
-    ? `<div><div class="xs" style="opacity:.8">Debes</div><div class="cbal">${fmt(bal)}</div>${a.limit?`<div class="xs" style="opacity:.85">Disponible ${fmt(a.limit-bal)}</div>`:''}</div>`
+    ? `<div><div class="xs" style="opacity:.8">${bal<0?'Saldo a favor':'Debes'}</div><div class="cbal">${fmt(Math.abs(bal))}</div>${a.limit?`<div class="xs" style="opacity:.85">Disponible ${fmt(a.limit-bal)}</div>`:''}</div>`
     : `<div><div class="xs" style="opacity:.8">Saldo</div><div class="cbal">${fmt(bal)}</div></div>`;
   return `<div class="acard ${big?'big':''}" style="background:linear-gradient(135deg,${b.c},${shade(b.c,-22)});color:${fg}" data-a="openAcc" data-id="${a.id}">
     <div class="between"><b class="sm ell">${esc(a.name)}</b><span class="xs" style="opacity:.85">${ATYPES[a.type].e} ${ATYPES[a.type].s}</span></div>
@@ -433,7 +449,10 @@ function vCuentas(){
     <button class="chip ${ma==='__last'?'on':''}" data-a="mainAcc" data-v="__last">🔁 La última que usé</button><button class="chip ${ma===''?'on':''}" data-a="mainAcc" data-v="">✋ Elegir cada vez</button></div>
     <p class="xs mut" style="margin-top:6px">Siempre puedes cambiarla al anotar. Las cuentas solo para la casa no aparecen en tus gastos personales.</p></div>`;
   if(!L.length) h+=`<div class="card empty"><i>💳</i>Agrega tu primera cuenta: Nequi, Bancolombia, tu tarjeta de crédito, el efectivo…</div>`;
-  h+=L.map(a=>cardHtml(a,true)).join('');
+  const needG=L.some(a=>(a.type==='deb'||a.type==='bil') && !a.gmf);
+  if(needG) h+=`<div class="card hi"><div class="between"><div><b>🧾 ¿Descontamos el 4x1000?</b><div class="xs mut">Marca cuál cuenta es la exenta y la app descuenta el 4x1000 de las demás cuando salga plata.</div></div><button class="btn sm" data-a="gmfCfg">Configurar</button></div></div>`;
+  if(L.length>1) h+=`<div style="text-align:right;margin:-4px 2px 8px"><button class="link sm" data-a="sortTog">${ui.sortAcc?'✅ Listo':'↕️ Ordenar tarjetas'}</button></div>`;
+  h+=L.map((a,i)=>ui.sortAcc?`<div class="row" style="flex-wrap:nowrap;gap:8px;align-items:center"><div class="grow">${cardHtml(a,true)}</div><div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px"><button class="ib" data-a="accUp" data-id="${a.id}" ${i===0?'disabled style="opacity:.3"':''}>↑</button><button class="ib" data-a="accDown" data-id="${a.id}" ${i===L.length-1?'disabled style="opacity:.3"':''}>↓</button></div></div>`:cardHtml(a,true)).join('');
   h+=`<button class="btn full" data-a="newAcc" style="margin:4px 0 10px">+ Agregar cuenta o tarjeta</button>`;
   if(L.length) h=h.replace('<!--QA-->',quickActions(null));
   h+=`<p class="xs mut" style="text-align:center;margin-bottom:14px">🔒 Aquí nunca se pone el número completo de la tarjeta ni el código de seguridad. Con los últimos 4 dígitos basta.</p>`;
@@ -476,6 +495,8 @@ function mAcc(){
     <label class="l">¿Cuánto debes hoy en esta tarjeta?</label><input class="f money" id="aShow" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.show)}">
     <div class="grid2"><div><label class="l">Día de corte</label><input class="f" id="aCut" type="number" min="1" max="31" inputmode="numeric" value="${f.cutDay||''}"></div><div><label class="l">Día límite de pago</label><input class="f" id="aPay" type="number" min="1" max="31" inputmode="numeric" value="${f.payDay||''}"></div></div>`;
   else h+=`<label class="l">¿Cuánto tienes hoy ahí?</label><input class="f money" id="aShow" data-money inputmode="numeric" placeholder="$ 0" value="${fmtIn(f.show)}">`;
+  if(f.type==='deb'||f.type==='bil') h+=`<label class="l">🧾 4x1000</label><div class="chips">${Object.entries(GMF_MODES).map(([k,l])=>`<button class="chip ${(f.gmf||'')===k?'on':''}" data-a="aGmf" data-v="${k}">${l}</button>`).join('')}<button class="chip ${!f.gmf?'on':''}" data-a="aGmf" data-v="">No calcular</button></div>
+    <p class="xs mut">Si paga, al salir plata de esta cuenta se descuenta también el 4x1000 (se cuenta como gasto). Solo una cuenta puede ser la exenta; su tope es 350 UVT al mes (${fmt(350*uvtOf(new Date().getFullYear()))}).</p>`;
   const SPL=Spaces.list();
   if(SPL.length) h+=`<label class="l">¿Para qué la usas? <span class="mut">(puedes elegir varias)</span></label><div class="chips"><button class="chip ${f.use.p?'on':''}" data-a="aUse" data-v="p">👤 Mis gastos</button>${SPL.map(sp=>`<button class="chip ${f.use.sp.includes(sp.id)?'on':''}" data-a="aUse" data-v="${esc(sp.id)}">${esc(sp.emoji||'🏠')} ${esc(sp.name)}</button>`).join('')}</div>
     <p class="xs mut">Si la marcas solo para ${esc(SPL[0].name)}, no aparece al anotar tus gastos personales y su saldo se muestra aparte, como plata de la casa.</p>`;
@@ -506,6 +527,10 @@ function sobSave(period,amount,goalId){
 function askGoal(period,amount){
   ask({title:'¿Para qué es este ahorro?', text:'Puedes sumarlo a una de tus metas o dejarlo como ahorro general.', select:[{v:'',l:'🐷 Ahorro general'},...S.goals.map(g=>({v:g.id,l:(g.emoji||'🎯')+' '+g.name}))], ok:'Guardar'},
     ()=>{ const v=$('#pSel').value; closeModal(); sobSave(period,amount,v||null); });
+}
+function moveAcc(id,k){
+  const L=activeAccs(), i=L.findIndex(a=>a.id===id), j=i+k; if(i<0||j<0||j>=L.length) return;
+  [L[i],L[j]]=[L[j],L[i]]; L.forEach((a,n)=>a.order=n); save(); render();
 }
 function readAcc(){
   const f=ui.aform; if(!f) return; const g=id=>document.getElementById(id);
@@ -809,7 +834,7 @@ function pStats(key){
     let carryRaw=0, sobAhorro=0; const prev=pPrev(key), fk=firstPayKey();
     if(fk && prev>=fk && !ps.some(p=>p.start)){ carryRaw=pStats(prev).restante; sobAhorro=sum(sobOf(prev)); }
     const carry = carryRaw>0 ? carryRaw-Math.min(sobAhorro,carryRaw) : carryRaw;
-    const ing=ingBase+extraIn, fijosT=sum(fijos), disp=ing+carry-fijosT-ahorroUse, gastado=sum(gastos);
+    const ing=ingBase+extraIn, fijosT=sum(fijos), disp=ing+carry-fijosT-ahorroUse, gastado=sum(gastos)+sum(tx,'gmf');
     return {key,s,e,ps,pago,ahorro:ahorroUse,extras,extraIn,ing,fijos,fijosT,disp,gastado,restante:disp-gastado,gastos,estimado,carry,carryRaw,sobAhorro,prev};
   });
 }
@@ -1079,7 +1104,7 @@ function vInicio(){
 function sortTx(a,b){ return a.date<b.date?1:a.date>b.date?-1:(b.ts||0)-(a.ts||0); }
 function txRow(t){
   const a=accById(t.acc), an=a?' · '+esc(a.name):'';
-  const row=(ic,bg,title,subt,amt,cls)=>`<div class="tx" data-a="edit" data-id="${t.id}"><div class="dot" style="background:${bg}">${ic}</div><div class="grow"><div class="ell"><b class="sm">${title}</b></div><div class="xs mut ell">${subt}</div></div><span class="amt ${cls}">${amt}</span></div>`;
+  const row=(ic,bg,title,subt,amt,cls)=>`<div class="tx" data-a="edit" data-id="${t.id}"><div class="dot" style="background:${bg}">${ic}</div><div class="grow"><div class="ell"><b class="sm">${title}</b></div><div class="xs mut ell">${subt}${t.gmf?' · 4x1000 '+fmt(t.gmf):''}</div></div><span class="amt ${cls}">${amt}</span></div>`;
   if(t.type==='tr'){ const to=accById(t.to); return row('↔️','var(--card2)', esc(t.note)||(to&&to.type==='cre'?'Pago de tarjeta':'Movimiento entre cuentas'), `${a?esc(a.name):'?'} → ${to?esc(to.name):'?'} · no es gasto`, fmt(t.amount), 'mut'); }
   if(t.type==='fix') return row('🧾','var(--card2)', esc(t.note)||'Gasto fijo', 'Gasto fijo pagado'+an, '-'+fmt(t.amount), '');
   if(t.type==='sob') return row('🐷','var(--acc2)', 'Ahorro del sobrante', pName(t.period)+(t.goal?' · '+esc((S.goals.find(g=>g.id===t.goal)||{}).name||'meta'):''), fmt(t.amount), 'mut');
@@ -1144,7 +1169,7 @@ function vResumen(){
   h+=`<div class="card"><h3>Balance del mes</h3>
     <div class="li"><span class="grow">Ingresos</span><b class="pos">${fmt(st.ing)}</b></div>
     <div class="li"><span class="grow">Gastos fijos</span><b>-${fmt(st.fijos)}</b></div>
-    <div class="li"><span class="grow">Gastos del mes</span><b>-${fmt(st.gastado)}</b></div>
+    <div class="li"><span class="grow">Gastos del mes${st.gmf?`<div class="xs mut">incluye ${fmt(st.gmf)} de 4x1000</div>`:''}</span><b>-${fmt(st.gastado)}</b></div>
     <div class="li"><span class="grow"><b>Lo que te queda (ahorro real)</b></span><b class="${real<0?'neg':'pos'}">${fmt(real)}</b></div>
     ${meta?`<p class="sm" style="margin-top:8px">${real>=meta?`🎉 Vas cumpliendo tu meta de ahorro de ${fmt(meta)}.`:`🎯 Para tu meta de ${fmt(meta)} te faltan <b>${fmt(meta-real)}</b>.`}</p>`:''}</div>`;
 
@@ -1436,6 +1461,12 @@ function renderModal(){
   else if(k==='acc') body=mAcc();
   else if(k==='pay') body=mPay();
   else if(k==='assign') body=mAssign();
+  else if(k==='gmf'){ const L=activeAccs().filter(a=>a.type==='deb'||a.type==='bil');
+    body=`<div class="between" style="margin-bottom:8px"><h2>🧾 4x1000</h2><button class="ib" data-a="closeModal">✕</button></div>
+    <p class="sm mut">Elige para cada cuenta. Solo una puede ser la exenta (la que marcaste en el banco). Las billeteras como Nequi o DaviPlata con topes suelen ser de bajo monto.</p>
+    ${L.map(a=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)"><b class="sm"><span class="bdot" style="background:${bankBy(a.bank).c}"></span>${esc(accLabel(a))}</b><div class="chips" style="margin-top:6px">${Object.entries(GMF_MODES).map(([k,l])=>`<button class="chip ${(d.sel[a.id]||'')===k?'on':''}" data-a="gmfSel" data-id="${a.id}" data-v="${k}">${k==='paga'?'Paga':k==='exenta'?'Exenta':'Bajo monto'}</button>`).join('')}</div></div>`).join('')}
+    <p class="xs mut" style="margin-top:8px">Se aplica desde hoy: lo que ya tenías anotado no cambia. Tope exento: 350 UVT al mes (${fmt(350*uvtOf(new Date().getFullYear()))}); bajo monto: 65 UVT (${fmt(65*uvtOf(new Date().getFullYear()))}).</p>
+    <button class="btn full" data-a="gmfSave" style="margin-top:10px">Guardar</button>`; }
   else if(k==='use'){ const a=accById(d.id), u=d.use; body=`<div class="between" style="margin-bottom:8px"><h2>¿Para qué usas ${esc(a?a.name:'')}?</h2><button class="ib" data-a="closeModal">✕</button></div>
     <div class="chips"><button class="chip ${u.p?'on':''}" data-a="useTog" data-v="p">👤 Mis gastos</button>${Spaces.list().map(sp=>`<button class="chip ${u.sp.includes(sp.id)?'on':''}" data-a="useTog" data-v="${esc(sp.id)}">${esc(sp.emoji||'🏠')} ${esc(sp.name)}</button>`).join('')}</div>
     <p class="xs mut" style="margin-top:8px">Puedes elegir varias. Si solo es para la casa, no aparece en tus gastos personales y su saldo se cuenta aparte.</p>
@@ -1567,6 +1598,8 @@ const A = {
     const old=f.id?accById(f.id):null, id=f.id||uid();
     const rec={id, bank:f.bank, type:f.type, name:(f.name||'').trim()||autoName(f), last4:f.type==='efe'?'':(f.last4||''), limit:f.type==='cre'?f.limit:0, cutDay:f.type==='cre'?f.cutDay:'', payDay:f.type==='cre'?f.payDay:'', created:(old&&old.created)||todayStr()};
     rec.use=f.use||{p:true,sp:[]};
+    if(rec.type==='deb'||rec.type==='bil'){ rec.gmf=f.gmf||''; rec.gmfFrom=(old&&old.gmf===rec.gmf&&old.gmfFrom)?old.gmfFrom:(rec.gmf?todayStr():''); }
+    if(rec.gmf==='exenta') for(const o of S.accounts) if(o.id!==id && o.gmf==='exenta'){ o.gmf='paga'; o.gmfFrom=todayStr(); }
     if(!rec.use.p && !(rec.use.sp||[]).length){ toast('Elige para qué usas esta cuenta'); return; }
     rec.start=startFor(rec.type,id,f.show||0);
     if(old) Object.assign(old,rec); else S.accounts.push(rec);
@@ -1795,6 +1828,12 @@ const A = {
       if(md.sel[a.id]){ if(i<0) u.sp.push(md.sp); u.p=!md.only; } else { if(i>=0) u.sp.splice(i,1); if(!u.p && !u.sp.length) u.p=true; }
       a.use=u; }
     save(); closeModal(); render(); toast('💳 Cuentas de la casa guardadas'); },
+  aGmf:d=>{ readAcc(); ui.aform.gmf=d.v; renderModal(); },
+  gmfCfg:()=>{ const sel={}; activeAccs().forEach(a=>{ if(a.type==='deb'||a.type==='bil') sel[a.id]=a.gmf||(a.bank==='nequi'||a.bank==='daviplata'?'bajo':'paga'); }); openModal('gmf',{sel}); },
+  gmfSel:d=>{ const sel=ui.modal.data.sel; if(d.v==='exenta') for(const k in sel) if(sel[k]==='exenta') sel[k]='paga'; sel[d.id]=d.v; renderModal(); },
+  gmfSave:()=>{ const sel=ui.modal.data.sel; for(const a of S.accounts){ if(sel[a.id]!==undefined && a.gmf!==sel[a.id]){ a.gmf=sel[a.id]; a.gmfFrom=todayStr(); } } save(); closeModal(); render(); toast('🧾 Listo: el 4x1000 se descuenta desde hoy'); },
+  sortTog:()=>{ ui.sortAcc=!ui.sortAcc; render(); },
+  accUp:d=>moveAcc(d.id,-1), accDown:d=>moveAcc(d.id,1),
   tourNext:()=>{ ui.modal.data.i=(ui.modal.data.i||0)+1; renderModal(); },
   tourPrev:()=>{ ui.modal.data.i=Math.max(0,(ui.modal.data.i||0)-1); renderModal(); },
   tourEnd:()=>{ try{ localStorage.setItem('mikakeibo.tour','1'); }catch(e){} closeModal(); },
